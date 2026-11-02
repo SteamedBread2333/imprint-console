@@ -110,6 +110,12 @@ pub fn validate(doc: &GlobalEmbedDoc) -> Result<(), String> {
             return Err("relate_bidirectional must be a boolean".into());
         }
     }
+    if let Some(v) = doc.config.get("relate_model") {
+        let ok = matches!(v, serde_yaml::Value::String(s) if !s.trim().is_empty());
+        if !ok {
+            return Err("relate_model must be a non-empty string".into());
+        }
+    }
     Ok(())
 }
 
@@ -169,6 +175,7 @@ mod tests {
             Some(serde_yaml::Value::String(s)) => assert_eq!(s, "BAAI/bge-small-zh-v1.5"),
             other => panic!("model: {other:?}"),
         }
+        assert!(back.config.get("relate_model").is_none());
     }
 
     #[test]

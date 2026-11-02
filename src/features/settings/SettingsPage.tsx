@@ -30,6 +30,7 @@ type EmbedForm = {
   relateContradictionMin: string;
   relateEntailmentMin: string;
   relateBidirectional: boolean;
+  relateModel: string;
   timeoutSeconds: string;
 };
 
@@ -68,6 +69,7 @@ function embedFormFromDoc(doc: GlobalEmbedDoc): EmbedForm {
       typeof c.relate_bidirectional === "boolean"
         ? c.relate_bidirectional
         : EMBED_DEFAULTS.relateBidirectional,
+    relateModel: typeof c.relate_model === "string" ? c.relate_model : "",
     timeoutSeconds: numField(c.timeout_seconds, EMBED_DEFAULTS.timeoutSeconds),
   };
 }
@@ -96,20 +98,24 @@ function embedFormError(form: EmbedForm): "port" | "model" | "threshold" | "time
 }
 
 function embedDocFromForm(base: GlobalEmbedDoc, form: EmbedForm): GlobalEmbedDoc {
+  const config: GlobalEmbedDoc["config"] = {
+    ...base.config,
+    port: parseIntInRange(form.port, 1, 65535),
+    model: form.model.trim(),
+    duplicate_threshold: parseUnitInterval(form.duplicateThreshold),
+    relate_contradiction_min: parseUnitInterval(form.relateContradictionMin),
+    relate_entailment_min: parseUnitInterval(form.relateEntailmentMin),
+    relate_bidirectional: form.relateBidirectional,
+    timeout_seconds: parseIntInRange(form.timeoutSeconds, 1, 3600),
+  };
+  const relate = form.relateModel.trim();
+  if (relate) config.relate_model = relate;
+  else delete config.relate_model;
   return {
     ...base,
     enabled: form.enabled,
     package: base.package,
-    config: {
-      ...base.config,
-      port: parseIntInRange(form.port, 1, 65535),
-      model: form.model.trim(),
-      duplicate_threshold: parseUnitInterval(form.duplicateThreshold),
-      relate_contradiction_min: parseUnitInterval(form.relateContradictionMin),
-      relate_entailment_min: parseUnitInterval(form.relateEntailmentMin),
-      relate_bidirectional: form.relateBidirectional,
-      timeout_seconds: parseIntInRange(form.timeoutSeconds, 1, 3600),
-    },
+    config,
   };
 }
 
@@ -240,6 +246,8 @@ export function SettingsPage({
             </SimpleGrid>
             <TextInput label={m.embedModel} description="model" value={embedForm.model} styles={monoInput}
               onChange={(e) => setEmbedForm({ ...embedForm, model: e.currentTarget.value })} />
+            <TextInput label={m.embedRelateModel} description={m.embedRelateModelHint} value={embedForm.relateModel} styles={monoInput}
+              onChange={(e) => setEmbedForm({ ...embedForm, relateModel: e.currentTarget.value })} />
             <Switch label={m.embedBidirectional} description="relate_bidirectional"
               checked={embedForm.relateBidirectional}
               onChange={(e) => setEmbedForm({ ...embedForm, relateBidirectional: e.currentTarget.checked })} />
