@@ -1,7 +1,5 @@
 import type { GraphData, GraphEdge, GraphNode, UnifiedGraph } from "./contracts";
 
-export const MAX_GRAPH_NODES = 300;
-
 export function graphFromUnified(unified: UnifiedGraph): GraphData {
   return {
     generated_at: unified.generated_at,
@@ -46,12 +44,13 @@ export function graphFromUnified(unified: UnifiedGraph): GraphData {
   };
 }
 
+/** Optional `limit` for tests or future perf tuning; default draws all nodes in the slice. */
 export function pickForGraph(
   data: GraphData,
   nodes: GraphNode[],
-  limit = MAX_GRAPH_NODES,
+  limit = Number.POSITIVE_INFINITY,
 ): { nodes: GraphNode[]; truncated: number } {
-  if (nodes.length <= limit) return { nodes, truncated: 0 };
+  if (!Number.isFinite(limit) || nodes.length <= limit) return { nodes, truncated: 0 };
   const connected = new Set<string>();
   for (const edge of data.edges) {
     connected.add(edge.source);
