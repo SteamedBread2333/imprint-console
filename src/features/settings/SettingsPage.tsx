@@ -206,8 +206,8 @@ export function SettingsPage({
         )}
         <Stack gap="xs">
           {runtimeStatus?.components.map((c) => (
-            <Group key={c.name} justify="space-between" wrap="nowrap">
-              <Text size="sm">
+            <Group key={c.name} justify="space-between" align="flex-start" wrap="nowrap" gap="md">
+              <Text size="sm" style={{ flex: 1, minWidth: 0, wordBreak: "break-all" }}>
                 <Text span fw={600}>{c.name}</Text>{" "}
                 {c.installed
                   ? c.latest && c.version && c.latest !== c.version ? `${c.version} → ${c.latest}` : c.version || "ok"
@@ -215,7 +215,13 @@ export function SettingsPage({
                 · <Text span ff="monospace" size="xs">{c.path || "—"}</Text>
               </Text>
               {c.managedByConsole === true && (c.installed || c.name === "imprint") && (
-                <Button size="xs" variant="subtle" disabled={busy} onClick={() => onUpdateComponent(c.name)}>
+                <Button
+                  size="compact-sm"
+                  variant="light"
+                  disabled={busy}
+                  style={{ flexShrink: 0, alignSelf: "center" }}
+                  onClick={() => onUpdateComponent(c.name)}
+                >
                   {m.runtimeUpdate}
                 </Button>
               )}
