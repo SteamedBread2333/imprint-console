@@ -1,9 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Badge, Button, Code, Drawer, Group, Loader, ScrollArea, Stack, Text, Title } from "@mantine/core";
 import type { Messages } from "../../../i18n";
 import { deskClient } from "../api/desk-client";
 import type { DocFile, GraphNode } from "../domain/contracts";
-import { headingSection, highlightTerms, renderDocBody, renderSafeMarkdown } from "../domain/markdown";
+import { ruleStatusBadgeColor, scopeColor } from "../domain/graph-model";
+import {
+  headingSection,
+  highlightTerms,
+  renderDocBody,
+  renderSafeMarkdown,
+  scrollDocAnchorIntoView,
+} from "../domain/markdown";
 
 type Source = {
   path?: string;
@@ -67,6 +74,7 @@ export function RuleDetail({
   const [sourceError, setSourceError] = useState("");
   const [failedSource, setFailedSource] = useState<Source | null>(null);
   const article = useRef<HTMLDivElement>(null);
+  const docViewport = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -101,16 +109,31 @@ export function RuleDetail({
       });
   };
 
-  useEffect(() => {
+  const syncSourcePreviewView = useCallback(() => {
     const root = article.current;
     if (!root || !sourcePreview) return;
     try {
       highlightTerms(root, [node?.id ?? "", node?.claim ?? "", sourcePreview.heading ?? ""]);
-      root.querySelector("#doc-anchor")?.scrollIntoView({ block: "center" });
+      scrollDocAnchorIntoView(root, docViewport.current);
     } catch {
       // Source content remains readable if optional highlighting cannot run.
     }
   }, [node, sourcePreview]);
+
+  useEffect(() => {
+    if (!sourcePreview) return;
+    let cancelled = false;
+    const run = () => {
+      if (!cancelled) syncSourcePreviewView();
+    };
+    const raf = window.requestAnimationFrame(() => window.requestAnimationFrame(run));
+    const timer = window.setTimeout(run, 350);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
+  }, [sourcePreview, syncSourcePreviewView]);
 
   if (!node) return <Text c="dimmed" size="sm">{m.detailEmpty}</Text>;
 
@@ -124,7 +147,16 @@ export function RuleDetail({
     <Stack gap="sm" data-testid="rule-detail">
       <Group justify="space-between" align="flex-start">
         <Code>{node.id}</Code>
-        <Badge variant="light">{node._kind && node._kind !== "rule" ? node._kind : node.status}</Badge>
+        <Badge
+          variant="light"
+          color={
+            node._kind && node._kind !== "rule"
+              ? "violet"
+              : ruleStatusBadgeColor(node.status)
+          }
+        >
+          {node._kind && node._kind !== "rule" ? node._kind : node.status}
+        </Badge>
       </Group>
       <Title order={4}>{node.heading || node.claim}</Title>
       {node.path && (
@@ -132,7 +164,20 @@ export function RuleDetail({
       )}
       {(!node._kind || node._kind === "rule") && (
         <Stack gap={8}>
-          <Group gap={6}>{node.scope.map((scope) => <Badge key={scope} variant="outline">{scope}</Badge>)}</Group>
+          <Group gap={6}>
+            {node.scope.map((scope) => {
+              const tint = scopeColor(scope);
+              return (
+                <Badge
+                  key={scope}
+                  variant="outline"
+                  styles={{ root: { borderColor: tint, color: tint } }}
+                >
+                  {scope}
+                </Badge>
+              );
+            })}
+          </Group>
           <Text size="sm">{m.detailConfidence} {node.confidence.toFixed(2)} · {m.nodeSizeHint}</Text>
           <Text size="sm">{m.detailReinforced} {node.reinforcement_count}</Text>
           {node.query_local?.trim() && <Text size="sm">{m.detailQueryLocal}: {node.query_local}</Text>}
@@ -201,7 +246,7 @@ export function RuleDetail({
           </Stack>
         )}
         {sourcePreview && (
-          <ScrollArea h="calc(100vh - 100px)">
+          <ScrollArea h="calc(100vh - 100px)" viewportRef={docViewport}>
             <div
               ref={article}
               className="audit-markdown"

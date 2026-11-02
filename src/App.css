@@ -195,7 +195,15 @@ mark.search-hl {
   flex: none;
   width: 8px;
   cursor: col-resize;
+  touch-action: none;
+  user-select: none;
   background: var(--mantine-color-dark-5);
+}
+
+.graph-stage.is-resizing,
+.graph-stage.is-resizing * {
+  user-select: none !important;
+  cursor: col-resize !important;
 }
 
 .graph-stage-handle:hover,

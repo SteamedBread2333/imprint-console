@@ -4,7 +4,7 @@ import { Alert, Code, Loader, Stack, Text, TextInput, Title } from "@mantine/cor
 import "highlight.js/styles/base16/black-metal-dark-funeral.min.css";
 import { deskClient } from "../api/desk-client";
 import type { DocChunk, DocFile, DocHit } from "../domain/contracts";
-import { highlightInElement, renderDocBody, splitHighlight } from "../domain/markdown";
+import { highlightInElement, renderDocBody, scrollDocAnchorIntoView, splitHighlight } from "../domain/markdown";
 
 function Highlighted({ text, query }: { text: string; query: string }) {
   return splitHighlight(text, query).map((part, index) =>
@@ -84,11 +84,6 @@ export function DocsWorkspace({
     }
     root.innerHTML = renderDocBody(file.content, chunk?.line_start, chunk?.line_end);
     highlightInElement(root, debounced);
-    const anchor = root.querySelector("#doc-anchor");
-    if (anchor && !root.querySelector(".doc-rule-range")) {
-      const block = anchor.closest("p, li, h1, h2, h3, h4, h5, h6, td, blockquote, pre") || anchor.parentElement;
-      block?.classList.add("doc-match-block");
-    }
     const nodes = root.querySelectorAll<HTMLElement>(".mermaid");
     let active = true;
     if (nodes.length) {
@@ -98,12 +93,7 @@ export function DocsWorkspace({
         await mermaid.run({ nodes: [...nodes], suppressErrors: true });
       }).catch(() => {});
     }
-    const reader = root.closest(".docs-reader");
-    if (anchor && reader) {
-      const readerRect = reader.getBoundingClientRect();
-      const anchorRect = anchor.getBoundingClientRect();
-      reader.scrollTop += anchorRect.top - readerRect.top - reader.clientHeight / 3;
-    }
+    scrollDocAnchorIntoView(root, root.closest(".docs-reader") as HTMLElement | null);
     return () => { active = false; };
   }, [file, chunk, debounced]);
 

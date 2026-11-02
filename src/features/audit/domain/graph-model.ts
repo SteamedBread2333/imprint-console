@@ -99,8 +99,8 @@ export function graphStructureKey(
 }
 
 export function nodeRadius(node: { confidence?: number; _kind?: string }, focused: boolean): number {
-  if (node._kind && node._kind !== "rule") return 5 + (focused ? 4 : 0);
-  return 7 + Math.round((node.confidence || 0) * 10) + (focused ? 6 : 0);
+  if (node._kind && node._kind !== "rule") return 8 + (focused ? 5 : 0);
+  return 11 + Math.round((node.confidence || 0) * 14) + (focused ? 7 : 0);
 }
 
 export function edgeStyle(kind: string): { color: string; dashed: boolean } {
@@ -168,4 +168,18 @@ export function scopeColor(scope: string): string {
     hash = Math.imul(hash, 16777619);
   }
   return palette[Math.abs(hash) % palette.length];
+}
+
+/** Mantine theme color for rule lifecycle status (distinct from scope tags). */
+export function ruleStatusBadgeColor(status: string): string {
+  switch (status.trim().toLowerCase()) {
+    case "active":
+      return "teal";
+    case "dormant":
+      return "yellow";
+    case "superseded":
+      return "gray";
+    default:
+      return "blue";
+  }
 }

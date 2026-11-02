@@ -144,3 +144,27 @@ export function highlightTerms(root: HTMLElement, terms: string[]) {
 export function highlightInElement(root: HTMLElement, query: string) {
   highlightTerms(root, searchTerms(query));
 }
+
+/** Scroll the doc highlight (.doc-rule-range / #doc-anchor) into view inside a scroll container. */
+export function scrollDocAnchorIntoView(root: HTMLElement, scrollContainer?: HTMLElement | null) {
+  const anchor = root.querySelector("#doc-anchor");
+  if (!anchor) return;
+  if (!root.querySelector(".doc-rule-range")) {
+    const block =
+      anchor.closest("p, li, h1, h2, h3, h4, h5, h6, td, blockquote, pre") || anchor.parentElement;
+    block?.classList.add("doc-match-block");
+  }
+  const target =
+    (root.querySelector(".doc-rule-range") as HTMLElement | null) ?? (anchor as HTMLElement);
+  const scroller =
+    scrollContainer ??
+    (root.closest("[data-scrollarea-viewport]") as HTMLElement | null) ??
+    (root.closest(".docs-reader") as HTMLElement | null);
+  if (!scroller) {
+    target.scrollIntoView({ block: "center" });
+    return;
+  }
+  const scrollerRect = scroller.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  scroller.scrollTop += targetRect.top - scrollerRect.top - scroller.clientHeight / 3;
+}

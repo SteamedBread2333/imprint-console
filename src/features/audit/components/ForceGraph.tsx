@@ -94,7 +94,7 @@ export const ForceGraph = forwardRef<GraphHandle, {
     const height = measured ? host.clientHeight : 420;
     const nodeIds = new Set(sourceNodes.map((node) => node.id));
     const simNodes: SimNode[] = sourceNodes.map((node, index) => {
-      const radius = 36 + Math.sqrt(sourceNodes.length) * 18;
+      const radius = 28 + Math.sqrt(sourceNodes.length) * 12;
       const angle = (2 * Math.PI * index) / Math.max(sourceNodes.length, 1) - Math.PI / 2;
       return {
         ...node,
@@ -180,10 +180,10 @@ export const ForceGraph = forwardRef<GraphHandle, {
     node
       .append("text")
       .text((datum) => datum.claim.length > 34 ? `${datum.claim.slice(0, 32)}…` : datum.claim)
-      .attr("x", 12)
-      .attr("y", 4)
+      .attr("x", (datum) => datum.r + 5)
+      .attr("y", 5)
       .attr("fill", "currentColor")
-      .attr("font-size", 11)
+      .attr("font-size", 12)
       .style("pointer-events", "none")
       .style("opacity", (datum) => labelOpacity(
         labelsRef.current,
@@ -194,10 +194,10 @@ export const ForceGraph = forwardRef<GraphHandle, {
     node.select("circle").attr("r", (datum) => datum.r);
 
     const simulation = forceSimulation(simNodes)
-      .force("link", forceLink<SimNode, SimLink>(links).id((datum) => datum.id).distance(72).strength(0.45))
-      .force("charge", forceManyBody().strength(-120))
+      .force("link", forceLink<SimNode, SimLink>(links).id((datum) => datum.id).distance(58).strength(0.5))
+      .force("charge", forceManyBody().strength(-85))
       .force("center", forceCenter(width / 2, height / 2))
-      .force("collide", forceCollide<SimNode>().radius((datum) => datum.r + 6))
+      .force("collide", forceCollide<SimNode>().radius((datum) => datum.r + 8))
       .stop();
 
     const draw = () => {

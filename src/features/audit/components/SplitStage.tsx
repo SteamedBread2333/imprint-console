@@ -5,6 +5,7 @@ import { clampDetailWidth } from "../domain/graph-model";
 export function SplitStage({ graph, detail }: { graph: ReactNode; detail: ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(320);
+  const [resizing, setResizing] = useState(false);
 
   useEffect(() => {
     const element = frame.current;
@@ -29,13 +30,35 @@ export function SplitStage({ graph, detail }: { graph: ReactNode; detail: ReactN
     setWidth(clampDetailWidth(rect.right - clientX, rect.width, window.innerWidth));
   };
 
+  const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setResizing(false);
+  };
+
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    setResizing(true);
     resizeTo(event.clientX);
   };
 
+  useEffect(() => {
+    if (!resizing) return;
+    const previous = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.userSelect = previous;
+    };
+  }, [resizing]);
+
   return (
-    <div className="graph-stage" ref={frame} data-testid="graph-stage">
+    <div
+      className={resizing ? "graph-stage is-resizing" : "graph-stage"}
+      ref={frame}
+      data-testid="graph-stage"
+    >
       <div className="graph-stage-main">{graph}</div>
       <div
         className="graph-stage-handle"
@@ -45,8 +68,13 @@ export function SplitStage({ graph, detail }: { graph: ReactNode; detail: ReactN
         data-testid="graph-resizer"
         onPointerDown={onPointerDown}
         onPointerMove={(event) => {
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeTo(event.clientX);
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+          event.preventDefault();
+          resizeTo(event.clientX);
         }}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+        onLostPointerCapture={() => setResizing(false)}
       />
       <aside className="graph-stage-detail" style={{ width }}>
         <ScrollArea h="100%" p="md">{detail}</ScrollArea>
