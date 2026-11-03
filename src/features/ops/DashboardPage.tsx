@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { embedBackfill, embedBackfillStatus, type EmbedBackfillResult, type Snapshot } from "../../platform/tauri/api";
 import { StatusPill } from "../../components/StatusPill";
 import type { Messages } from "../../i18n";
@@ -193,35 +193,16 @@ export function DashboardPage({
                 </Button>
               }
             />
-            <Card withBorder padding="md" radius="md">
-              <Text fw={600} mb="sm">{m.embedBackfill}</Text>
-              <Text size="sm" c="dimmed">
-                {pending?.no_embedder
-                  ? m.embedBackfillOff
-                  : pending
-                    ? `${m.embedBackfillPending} ${pending.scanned}`
-                    : "…"}
-              </Text>
-              {pendingError && <Text size="sm" c="red" mt={4}>{pendingError}</Text>}
-              {pending && !pending.no_embedder && pending.scanned === 0 && !pendingError && (
-                <Text size="sm" c="dimmed" mt={4}>{m.embedBackfillNone}</Text>
-              )}
-              {backfillNote && <Text size="sm" mt={4}>{backfillNote}</Text>}
-              {!embedUp && pending && !pending.no_embedder && pending.scanned > 0 && (
-                <Text size="xs" c="dimmed" mt={4}>{m.embedBackfillNeedSidecar}</Text>
-              )}
-              <Text size="xs" c="dimmed" mt="sm">{m.embedBackfillHint}</Text>
-              <Group mt="md">
-                <Button
-                  size="xs"
-                  loading={backfilling}
-                  disabled={busy || backfilling || !embedUp || !pending || pending.no_embedder || pending.scanned === 0}
-                  onClick={() => void onBackfill()}
-                >
-                  {m.embedBackfillAction}
-                </Button>
-              </Group>
-            </Card>
+            <EmbedBackfillCard
+              m={m}
+              pending={pending}
+              pendingError={pendingError}
+              backfillNote={backfillNote}
+              embedUp={embedUp}
+              busy={busy}
+              backfilling={backfilling}
+              onBackfill={() => void onBackfill()}
+            />
             <Card withBorder padding="md" radius="md">
               <Text fw={600} mb="sm">{m.vault}</Text>
               <Text size="sm" c="dimmed" ff="monospace" lineClamp={3} title={snap.vault}>
@@ -237,6 +218,117 @@ export function DashboardPage({
         </Stack>
       )}
     </Stack>
+  );
+}
+
+function EmbedBackfillCard({
+  m,
+  pending,
+  pendingError,
+  backfillNote,
+  embedUp,
+  busy,
+  backfilling,
+  onBackfill,
+}: {
+  m: Messages;
+  pending: EmbedBackfillResult | null;
+  pendingError: string;
+  backfillNote: string;
+  embedUp: boolean;
+  busy: boolean;
+  backfilling: boolean;
+  onBackfill: () => void;
+}) {
+  const loading = !pending && !pendingError;
+  const off = pending?.no_embedder === true;
+  const ready = pending != null && !off && pending.scanned === 0;
+  const work = pending != null && !off && pending.scanned > 0;
+
+  const statusBadge = loading
+    ? { label: m.embedBackfillLoading, color: "gray" as const }
+    : off
+      ? { label: m.embedBackfillStatusOff, color: "gray" as const }
+      : ready
+        ? { label: m.embedBackfillStatusReady, color: "teal" as const }
+        : { label: m.embedBackfillStatusPending, color: "violet" as const };
+
+  const canRun =
+    !busy && !backfilling && embedUp && work && !pendingError;
+
+  return (
+    <Card withBorder padding="md" radius="md" style={{ display: "flex", flexDirection: "column" }}>
+      <Group justify="space-between" align="flex-start" mb="sm" wrap="nowrap">
+        <Text fw={600}>{m.embedBackfill}</Text>
+        <Badge variant="light" color={statusBadge.color} size="sm">
+          {statusBadge.label}
+        </Badge>
+      </Group>
+
+      <Paper withBorder p="md" radius="sm" mb="sm" style={{ minHeight: 88 }}>
+        {loading && (
+          <Text size="sm" c="dimmed">
+            {m.embedBackfillLoading}
+          </Text>
+        )}
+        {off && (
+          <Text size="sm" c="dimmed">
+            {m.embedBackfillOff}
+          </Text>
+        )}
+        {ready && (
+          <Stack gap={6}>
+            <Text size="xl" fw={700} lh={1} c="teal">
+              0
+            </Text>
+            <Text size="sm">{m.embedBackfillNone}</Text>
+          </Stack>
+        )}
+        {work && (
+          <Stack gap={4}>
+            <Text size="xl" fw={700} lh={1}>
+              {pending.scanned}
+            </Text>
+            <Text size="xs" c="dimmed" tt="uppercase" fw={600} style={{ letterSpacing: "0.04em" }}>
+              {m.embedBackfillPending}
+            </Text>
+          </Stack>
+        )}
+      </Paper>
+
+      {pendingError && (
+        <Alert variant="light" color="red" p="xs" mb="sm">
+          {pendingError}
+        </Alert>
+      )}
+      {backfillNote && (
+        <Alert variant="light" color="teal" p="xs" mb="sm">
+          {backfillNote}
+        </Alert>
+      )}
+      {!embedUp && work && (
+        <Text size="xs" c="orange" mb="sm">
+          {m.embedBackfillNeedSidecar}
+        </Text>
+      )}
+
+      <Text size="xs" c="dimmed" mb="md" style={{ flex: 1 }}>
+        {m.embedBackfillHint}
+      </Text>
+
+      <Group gap="xs" mt="auto">
+        <Button
+          size="sm"
+          variant={canRun ? "filled" : "light"}
+          color={canRun ? "violet" : "gray"}
+          loading={backfilling}
+          disabled={!canRun}
+          onClick={onBackfill}
+        >
+          {m.embedBackfillAction}
+        </Button>
+      </Group>
+    </Card>
   );
 }
 
