@@ -5,7 +5,13 @@ import type { GraphData, GraphNode } from "./contracts";
 import { clearAuditCache, getCachedGraph, putCachedGraph } from "./cache";
 import { filterRules } from "./filters";
 import { clampDetailWidth, graphFit, graphFromUnified, graphStructureKey, pickForGraph } from "./graph-model";
-import { headingSection, highlightInElement, renderSafeMarkdown, splitHighlight } from "./markdown";
+import {
+  expandLineRangeForFences,
+  headingSection,
+  highlightInElement,
+  renderSafeMarkdown,
+  splitHighlight,
+} from "./markdown";
 import { defaultAuditUrlState, parseAuditUrl, serializeAuditUrl } from "./url-state";
 
 const node = (id: string, scope: string[], confidence = 0.7): GraphNode => ({
@@ -122,6 +128,11 @@ describe("audit domain", () => {
     expect(clampDetailWidth(9999, 1200, 900)).toBe(300);
     expect(clampDetailWidth(100, 1200, 900)).toBe(264);
     expect(clampDetailWidth(9999, 400, 1200)).toBe(200);
+  });
+
+  it("expands line ranges to include whole fenced blocks", () => {
+    const content = ["# Doc", "```mermaid", "flowchart LR", "A-->B", "```", "tail"].join("\n");
+    expect(expandLineRangeForFences(content, 3, 3)).toEqual({ lineStart: 2, lineEnd: 5 });
   });
 
   it("emits mermaid blocks for fenced sequence diagrams", () => {

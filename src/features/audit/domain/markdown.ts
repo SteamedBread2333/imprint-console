@@ -29,7 +29,6 @@ export async function runMermaidInElement(root: HTMLElement | null): Promise<voi
     mermaid.initialize({
       startOnLoad: false,
       theme: "dark",
-      securityLevel: "strict",
       flowchart: { useMaxWidth: false },
       sequence: { useMaxWidth: false },
       gantt: { useMaxWidth: false },
@@ -127,8 +126,51 @@ export function splitHighlight(text: string, query: string): Array<{ text: strin
   }));
 }
 
+function isFenceLine(line: string): boolean {
+  return /^(```+|~~~+)\s*[\w-]*\s*$/.test(line.trim());
+}
+
+/** Extend a line range so fenced code blocks (e.g. mermaid) are never cut in half. */
+export function expandLineRangeForFences(content: string, lineStart: number, lineEnd: number): { lineStart: number; lineEnd: number } {
+  const lines = content.split("\n");
+  let start0 = Math.max(0, lineStart - 1);
+  let end0 = Math.min(lines.length - 1, (lineEnd || lineStart) - 1);
+  if (start0 > end0) return { lineStart, lineEnd: lineEnd || lineStart };
+
+  let inFence = false;
+  for (let i = 0; i < start0; i += 1) {
+    if (isFenceLine(lines[i] ?? "")) inFence = !inFence;
+  }
+  if (inFence) {
+    for (let i = start0 - 1; i >= 0; i -= 1) {
+      if (isFenceLine(lines[i] ?? "")) {
+        start0 = i;
+        break;
+      }
+    }
+  }
+
+  inFence = false;
+  for (let i = 0; i <= end0; i += 1) {
+    if (isFenceLine(lines[i] ?? "")) inFence = !inFence;
+  }
+  if (inFence) {
+    for (let i = end0 + 1; i < lines.length; i += 1) {
+      if (isFenceLine(lines[i] ?? "")) {
+        end0 = i;
+        break;
+      }
+    }
+  }
+
+  return { lineStart: start0 + 1, lineEnd: end0 + 1 };
+}
+
 export function renderDocBody(content: string, lineStart?: number, lineEnd?: number): string {
   if (!lineStart) return renderSafeMarkdown(content);
+  const expanded = expandLineRangeForFences(content, lineStart, lineEnd || lineStart);
+  lineStart = expanded.lineStart;
+  lineEnd = expanded.lineEnd;
   const lines = content.split("\n");
   const start = Math.max(0, lineStart - 1);
   const end = Math.min(lines.length - 1, (lineEnd || lineStart) - 1);
