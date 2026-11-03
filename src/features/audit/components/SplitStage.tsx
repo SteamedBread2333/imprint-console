@@ -4,7 +4,7 @@ import { clampDetailWidth } from "../domain/graph-model";
 
 export function SplitStage({ graph, detail }: { graph: ReactNode; detail: ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(320);
+  const [width, setWidth] = useState(360);
   const [resizing, setResizing] = useState(false);
 
   useEffect(() => {
@@ -76,8 +76,10 @@ export function SplitStage({ graph, detail }: { graph: ReactNode; detail: ReactN
         onPointerCancel={endResize}
         onLostPointerCapture={() => setResizing(false)}
       />
-      <aside className="graph-stage-detail" style={{ width }}>
-        <ScrollArea h="100%" p="md">{detail}</ScrollArea>
+      <aside className="graph-stage-detail" style={{ width }} aria-live="polite">
+        <ScrollArea h="100%" p="md" bg="var(--mantine-color-dark-8)">
+          {detail}
+        </ScrollArea>
       </aside>
     </div>
   );

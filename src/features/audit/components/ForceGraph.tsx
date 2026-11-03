@@ -1,10 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import {
-  forceCenter,
   forceCollide,
   forceLink,
   forceManyBody,
   forceSimulation,
+  forceX,
+  forceY,
   select,
   zoom,
   zoomIdentity,
@@ -35,10 +36,6 @@ type GraphView = {
   height: number;
   redraw: () => void;
 };
-
-function layoutTickCount(nodeCount: number): number {
-  return Math.min(220, Math.max(80, 64 + Math.round(Math.sqrt(nodeCount) * 8)));
-}
 
 function pointerGraph(
   event: { clientX: number; clientY: number },
@@ -109,10 +106,8 @@ export const ForceGraph = forwardRef<GraphHandle, {
     const nodeIds = new Set(sourceNodes.map((node) => node.id));
     const cx = width / 2;
     const cy = height / 2;
-    const seedRadius = Math.min(
-      Math.min(width, height) * 0.28,
-      24 + Math.sqrt(sourceNodes.length) * 5,
-    );
+    // Match imprint desk seed spread (dashboard-app.js).
+    const seedRadius = 36 + Math.sqrt(sourceNodes.length) * 18;
     const simNodes: SimNode[] = sourceNodes.map((node, index) => {
       const angle = (2 * Math.PI * index) / Math.max(sourceNodes.length, 1) - Math.PI / 2;
       return {
@@ -137,6 +132,7 @@ export const ForceGraph = forwardRef<GraphHandle, {
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     canvas.style.touchAction = "none";
+    canvas.style.opacity = "0";
     host.appendChild(canvas);
 
     const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true } as CanvasRenderingContext2DSettings);
@@ -200,24 +196,14 @@ export const ForceGraph = forwardRef<GraphHandle, {
 
     select(canvas).call(zoomBehavior).on("dblclick.zoom", null);
 
-    const chargeStrength = -Math.min(72, 28 + Math.sqrt(simNodes.length) * 5);
-    const repulseMax = Math.min(width, height) * 0.42;
+    const repulseMax = Math.min(width, height) * 0.55;
     const simulation = forceSimulation(simNodes)
-      .force("link", forceLink<SimNode, SimLink>(links).id((datum) => datum.id).distance(48).strength(0.62))
-      .force("charge", forceManyBody().strength(chargeStrength).distanceMax(repulseMax).theta(0.9))
-      .force("center", forceCenter(cx, cy).strength(0.12))
-      .force("collide", forceCollide<SimNode>().radius((datum) => datum.r + 8).strength(0.85).iterations(2))
-      .velocityDecay(0.45)
-      .stop();
-
-    const releasePins = () => {
-      for (const n of simNodes) {
-        n.fx = null;
-        n.fy = null;
-      }
-    };
-
-    const physicsStepsPerDragFrame = simNodes.length > 280 ? 2 : simNodes.length > 120 ? 3 : 5;
+      .force("link", forceLink<SimNode, SimLink>(links).id((datum) => datum.id).distance(64).strength(0.5))
+      .force("charge", forceManyBody().strength(-95).distanceMax(repulseMax))
+      .force("x", forceX(cx).strength(0.07))
+      .force("y", forceY(cy).strength(0.07))
+      .force("collide", forceCollide<SimNode>().radius((datum) => datum.r + 5))
+      .velocityDecay(0.4);
 
     const syncFit = (animate: boolean) => {
       const viewWidth = host.clientWidth >= 20 ? host.clientWidth : width;
@@ -252,45 +238,36 @@ export const ForceGraph = forwardRef<GraphHandle, {
       redraw,
     };
 
-    // Same fit transform from the first frame through layout — no jump when simulation settles.
-    syncFit(false);
-    redraw();
-
-    const totalTicks = layoutTickCount(simNodes.length);
-    const ticksPerFrame = simNodes.length > 120 ? 12 : 24;
-    let tickDone = 0;
-    const runLayoutFrame = () => {
-      const end = Math.min(tickDone + ticksPerFrame, totalTicks);
-      for (; tickDone < end; tickDone += 1) simulation.tick();
-      syncFit(false);
-      scheduleRedraw();
-      if (tickDone < totalTicks) {
-        layoutRaf = requestAnimationFrame(runLayoutFrame);
-      }
-    };
-    layoutRaf = requestAnimationFrame(runLayoutFrame);
-
     let dragNode: SimNode | null = null;
     let pointerMoved = false;
     let downX = 0;
     let downY = 0;
-    let settleRaf = 0;
+    let dragLocks = 0;
 
-    const runPhysics = (steps: number) => {
-      simulation.stop();
-      for (let i = 0; i < steps; i += 1) simulation.tick();
+    const onSimTick = () => scheduleRedraw();
+
+    const finishInitialLayout = () => {
+      syncFit(false);
+      canvas.style.opacity = "1";
+      simulation.on("tick", onSimTick);
+      scheduleRedraw();
     };
 
-    const settleAfterDrag = () => {
-      let left = Math.min(48, 12 + Math.round(Math.sqrt(simNodes.length)));
-      const step = () => {
-        runPhysics(2);
-        scheduleRedraw();
-        left -= 2;
-        if (left > 0) settleRaf = requestAnimationFrame(step);
-      };
-      if (settleRaf) cancelAnimationFrame(settleRaf);
-      settleRaf = requestAnimationFrame(step);
+    // Warm layout off-screen, fit once, then show — avoids a visible zoom jump after init.
+    simulation.stop();
+    simulation.alpha(1);
+    const alphaMin = simulation.alphaMin();
+    const warmBatch = simNodes.length > 280 ? 10 : simNodes.length > 120 ? 16 : 24;
+    const runWarmBatch = () => {
+      for (let i = 0; i < warmBatch && simulation.alpha() > alphaMin; i += 1) simulation.tick();
+      if (simulation.alpha() > alphaMin) layoutRaf = requestAnimationFrame(runWarmBatch);
+      else finishInitialLayout();
+    };
+    layoutRaf = requestAnimationFrame(runWarmBatch);
+
+    const reheat = () => {
+      if (dragLocks === 0) simulation.alphaTarget(0);
+      else simulation.alphaTarget(0.25).restart();
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -299,19 +276,15 @@ export const ForceGraph = forwardRef<GraphHandle, {
       if (!node) return;
       event.preventDefault();
       event.stopPropagation();
-      if (settleRaf) cancelAnimationFrame(settleRaf);
       canvas.setPointerCapture(event.pointerId);
       dragNode = node;
       pointerMoved = false;
       downX = event.clientX;
       downY = event.clientY;
-      releasePins();
-      for (const n of simNodes) {
-        n.vx = 0;
-        n.vy = 0;
-      }
+      dragLocks += 1;
       dragNode.fx = dragNode.x ?? 0;
       dragNode.fy = dragNode.y ?? 0;
+      reheat();
       canvas.style.cursor = "grabbing";
     };
 
@@ -321,8 +294,6 @@ export const ForceGraph = forwardRef<GraphHandle, {
         const [gx, gy] = pointerGraph(event, canvas, transform);
         dragNode.fx = gx;
         dragNode.fy = gy;
-        runPhysics(physicsStepsPerDragFrame);
-        scheduleRedraw();
         return;
       }
       const node = nodeAtPointer(event);
@@ -353,8 +324,9 @@ export const ForceGraph = forwardRef<GraphHandle, {
       picked.fx = null;
       picked.fy = null;
       dragNode = null;
+      dragLocks = Math.max(0, dragLocks - 1);
+      reheat();
       canvas.style.cursor = "grab";
-      settleAfterDrag();
       if (!pointerMoved) onSelectRef.current(picked.id);
       pointerMoved = false;
     };
@@ -382,10 +354,10 @@ export const ForceGraph = forwardRef<GraphHandle, {
     return () => {
       if (rafPaint) cancelAnimationFrame(rafPaint);
       if (layoutRaf) cancelAnimationFrame(layoutRaf);
-      if (settleRaf) cancelAnimationFrame(settleRaf);
       redrawRef.current = () => {};
       viewRef.current = null;
       fitRef.current = () => {};
+      simulation.on("tick", null);
       simulation.stop();
       select(canvas).on(".zoom", null);
       canvas.removeEventListener("pointerdown", onPointerDown);

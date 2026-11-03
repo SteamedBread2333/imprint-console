@@ -120,8 +120,14 @@ describe("audit domain", () => {
 
   it("keeps the detail panel within one third of the window", () => {
     expect(clampDetailWidth(9999, 1200, 900)).toBe(300);
-    expect(clampDetailWidth(100, 1200, 900)).toBe(220);
-    expect(clampDetailWidth(9999, 400, 1200)).toBe(180);
+    expect(clampDetailWidth(100, 1200, 900)).toBe(264);
+    expect(clampDetailWidth(9999, 400, 1200)).toBe(200);
+  });
+
+  it("emits mermaid blocks for fenced sequence diagrams", () => {
+    const html = renderSafeMarkdown("```mermaid\nsequenceDiagram\nA->>B: hi\n```");
+    expect(html).toContain('class="mermaid"');
+    expect(html).toContain("sequenceDiagram");
   });
 
   it("sanitizes scripts and event handlers from markdown", () => {

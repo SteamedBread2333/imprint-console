@@ -4,7 +4,13 @@ import { Alert, Code, Loader, Stack, Text, TextInput, Title } from "@mantine/cor
 import "highlight.js/styles/base16/black-metal-dark-funeral.min.css";
 import { deskClient } from "../api/desk-client";
 import type { DocChunk, DocFile, DocHit } from "../domain/contracts";
-import { highlightInElement, renderDocBody, scrollDocAnchorIntoView, splitHighlight } from "../domain/markdown";
+import {
+  highlightInElement,
+  renderDocBody,
+  runMermaidInElement,
+  scrollDocAnchorIntoView,
+  splitHighlight,
+} from "../domain/markdown";
 
 function Highlighted({ text, query }: { text: string; query: string }) {
   return splitHighlight(text, query).map((part, index) =>
@@ -84,17 +90,8 @@ export function DocsWorkspace({
     }
     root.innerHTML = renderDocBody(file.content, chunk?.line_start, chunk?.line_end);
     highlightInElement(root, debounced);
-    const nodes = root.querySelectorAll<HTMLElement>(".mermaid");
-    let active = true;
-    if (nodes.length) {
-      void import("mermaid").then(async ({ default: mermaid }) => {
-        if (!active) return;
-        mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "strict" });
-        await mermaid.run({ nodes: [...nodes], suppressErrors: true });
-      }).catch(() => {});
-    }
     scrollDocAnchorIntoView(root, root.closest(".docs-reader") as HTMLElement | null);
-    return () => { active = false; };
+    void runMermaidInElement(root).catch(() => {});
   }, [file, chunk, debounced]);
 
   if (!enabled) {

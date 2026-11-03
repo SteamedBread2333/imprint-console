@@ -153,8 +153,9 @@ export function graphFit(
 }
 
 export function clampDetailWidth(requested: number, frameWidth: number, windowWidth: number): number {
-  const max = Math.min(windowWidth / 3, Math.max(180, frameWidth - 320));
-  const min = Math.min(220, max);
+  const graphMin = 340;
+  const max = Math.min(windowWidth / 3, Math.max(200, frameWidth - graphMin));
+  const min = Math.min(Math.max(240, Math.round(frameWidth * 0.22)), max);
   return Math.min(max, Math.max(min, requested));
 }
 

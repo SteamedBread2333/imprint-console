@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Badge, Button, Code, Drawer, Group, Loader, ScrollArea, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Code, Drawer, Group, Loader, ScrollArea, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { Messages } from "../../../i18n";
 import { deskClient } from "../api/desk-client";
 import type { DocFile, GraphNode } from "../domain/contracts";
@@ -9,6 +9,7 @@ import {
   highlightTerms,
   renderDocBody,
   renderSafeMarkdown,
+  runMermaidInElement,
   scrollDocAnchorIntoView,
 } from "../domain/markdown";
 
@@ -109,31 +110,39 @@ export function RuleDetail({
       });
   };
 
-  const syncSourcePreviewView = useCallback(() => {
-    const root = article.current;
-    if (!root || !sourcePreview) return;
-    try {
-      highlightTerms(root, [node?.id ?? "", node?.claim ?? "", sourcePreview.heading ?? ""]);
-      scrollDocAnchorIntoView(root, docViewport.current);
-    } catch {
-      // Source content remains readable if optional highlighting cannot run.
-    }
-  }, [node, sourcePreview]);
+  const sourcePreviewHtml = useCallback((preview: SourcePreview) => {
+    const ranged = preview.lineStart
+      ? { start: preview.lineStart, end: preview.lineEnd || preview.lineStart }
+      : preview.heading
+        ? headingSection(preview.file.content, preview.heading)
+        : null;
+    return ranged
+      ? renderDocBody(preview.file.content, ranged.start, ranged.end)
+      : renderSafeMarkdown(preview.file.content);
+  }, []);
 
   useEffect(() => {
     if (!sourcePreview) return;
-    let cancelled = false;
-    const run = () => {
-      if (!cancelled) syncSourcePreviewView();
+    let active = true;
+    const paint = () => {
+      const root = article.current;
+      if (!active || !root) return;
+      try {
+        highlightTerms(root, [node?.id ?? "", node?.claim ?? "", sourcePreview.heading ?? ""]);
+        scrollDocAnchorIntoView(root, docViewport.current);
+      } catch {
+        // Source content remains readable if optional highlighting cannot run.
+      }
+      void runMermaidInElement(root).catch(() => {});
     };
-    const raf = window.requestAnimationFrame(() => window.requestAnimationFrame(run));
-    const timer = window.setTimeout(run, 350);
+    const raf = window.requestAnimationFrame(() => window.requestAnimationFrame(paint));
+    const timer = window.setTimeout(paint, 120);
     return () => {
-      cancelled = true;
+      active = false;
       window.cancelAnimationFrame(raf);
       window.clearTimeout(timer);
     };
-  }, [sourcePreview, syncSourcePreviewView]);
+  }, [sourcePreview, node?.id, node?.claim]);
 
   if (!node) return <Text c="dimmed" size="sm">{m.detailEmpty}</Text>;
 
@@ -158,7 +167,7 @@ export function RuleDetail({
           {node._kind && node._kind !== "rule" ? node._kind : node.status}
         </Badge>
       </Group>
-      <Title order={4}>{node.heading || node.claim}</Title>
+      <Text fw={600} size="sm" lh={1.45}>{node.heading || node.claim}</Text>
       {node.path && (
         <Button size="compact-sm" variant="light" onClick={() => openSource({ path: node.path, heading: node.heading })}>{node.path}</Button>
       )}
@@ -178,15 +187,23 @@ export function RuleDetail({
               );
             })}
           </Group>
-          <Text size="sm">{m.detailConfidence} {node.confidence.toFixed(2)} · {m.nodeSizeHint}</Text>
-          <Text size="sm">{m.detailReinforced} {node.reinforcement_count}</Text>
-          {node.query_local?.trim() && <Text size="sm">{m.detailQueryLocal}: {node.query_local}</Text>}
-          <div><Text size="xs" c="dimmed">{m.detailSupersedes}</Text>{links(node.supersedes, onOpen)}</div>
-          <div><Text size="xs" c="dimmed">{m.detailRelated}</Text>{links(node.related, onOpen)}</div>
-          <div><Text size="xs" c="dimmed">{m.detailConflicts}</Text>{links(node.conflicts_with, onOpen)}</div>
-          <div>
-            <Text size="xs" c="dimmed">{m.detailReferenced}</Text>
-            {node.referenced_by.length === 0 ? <Text size="sm" c="dimmed">—</Text> : (
+          <SimpleGrid cols={2} spacing={6}>
+            <Text size="xs">{m.detailConfidence} {node.confidence.toFixed(2)}</Text>
+            <Text size="xs">{m.detailReinforced} {node.reinforcement_count}</Text>
+          </SimpleGrid>
+          {node.query_local?.trim() && <Text size="xs">{m.detailQueryLocal}: {node.query_local}</Text>}
+          {(node.supersedes?.length ?? 0) > 0 && (
+            <div><Text size="xs" c="dimmed">{m.detailSupersedes}</Text>{links(node.supersedes, onOpen)}</div>
+          )}
+          {(node.related?.length ?? 0) > 0 && (
+            <div><Text size="xs" c="dimmed">{m.detailRelated}</Text>{links(node.related, onOpen)}</div>
+          )}
+          {(node.conflicts_with?.length ?? 0) > 0 && (
+            <div><Text size="xs" c="dimmed">{m.detailConflicts}</Text>{links(node.conflicts_with, onOpen)}</div>
+          )}
+          {node.referenced_by.length > 0 && (
+            <div>
+              <Text size="xs" c="dimmed">{m.detailReferenced}</Text>
               <Stack gap={4}>
                 {node.referenced_by.map((link) => (
                   <Button key={`${link.kind ?? ""}-${link.id}`} size="compact-xs" variant="subtle" justify="flex-start" onClick={() => onOpen(link.id)}>
@@ -194,8 +211,8 @@ export function RuleDetail({
                   </Button>
                 ))}
               </Stack>
-            )}
-          </div>
+            </div>
+          )}
           <div>
             <Text size="xs" c="dimmed">{m.detailSources}</Text>
             {loading && <Loader size="xs" />}
@@ -241,7 +258,7 @@ export function RuleDetail({
           <Stack gap="sm">
             <Alert color="yellow">{sourceError}</Alert>
             {failedSource?.path && <Code>{failedSource.path}</Code>}
-            {failedSource?.heading && <Title order={4}>{failedSource.heading}</Title>}
+            {failedSource?.heading && <Text fw={600} size="sm">{failedSource.heading}</Text>}
             {failedSource?.snippet && <Text size="sm">{failedSource.snippet}</Text>}
           </Stack>
         )}
@@ -250,18 +267,7 @@ export function RuleDetail({
             <div
               ref={article}
               className="audit-markdown"
-              dangerouslySetInnerHTML={{
-                __html: (() => {
-                  const ranged = sourcePreview.lineStart
-                    ? { start: sourcePreview.lineStart, end: sourcePreview.lineEnd || sourcePreview.lineStart }
-                    : sourcePreview.heading
-                      ? headingSection(sourcePreview.file.content, sourcePreview.heading)
-                      : null;
-                  return ranged
-                    ? renderDocBody(sourcePreview.file.content, ranged.start, ranged.end)
-                    : renderSafeMarkdown(sourcePreview.file.content);
-                })(),
-              }}
+              dangerouslySetInnerHTML={{ __html: sourcePreviewHtml(sourcePreview) }}
             />
           </ScrollArea>
         )}

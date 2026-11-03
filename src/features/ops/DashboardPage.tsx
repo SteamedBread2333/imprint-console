@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Alert, Badge, Button, Card, Group, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { embedBackfill, embedBackfillStatus, type EmbedBackfillResult, type Snapshot } from "../../platform/tauri/api";
 import { StatusPill } from "../../components/StatusPill";
 import type { Messages } from "../../i18n";
@@ -128,7 +128,7 @@ export function DashboardPage({
           <Badge variant="outline">Global</Badge>
         </Group>
         <Text size="sm" c="dimmed">{m.scopeGlobalHint}</Text>
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
           <ServiceCard
             title={m.embed}
             port={snap.embed.port}
@@ -169,7 +169,7 @@ export function DashboardPage({
             <Badge variant="outline">Project</Badge>
           </Group>
           <Text size="sm" c="dimmed">{m.scopeProjectHint}</Text>
-          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
             <ServiceCard
               title={m.host}
               port={snap.host.port}
@@ -218,16 +218,16 @@ export function DashboardPage({
               backfilling={backfilling}
               onBackfill={() => void onBackfill()}
             />
-            <Card withBorder padding="md" radius="md">
-              <Text fw={600} mb="sm">{m.vault}</Text>
-              <Text size="sm" c="dimmed" ff="monospace" lineClamp={3} title={snap.vault}>
-                {snap.vault || "—"}
-              </Text>
-              <Group mt="md">
-                <Button size="xs" variant="subtle" disabled={!snap.vault} onClick={onRevealVault}>
+            <Card withBorder padding="sm" radius="md">
+              <Group justify="space-between" mb={6} wrap="nowrap">
+                <Text fw={600} size="sm">{m.vault}</Text>
+                <Button size="compact-xs" variant="subtle" disabled={!snap.vault} onClick={onRevealVault}>
                   {m.openInFinder}
                 </Button>
               </Group>
+              <Text size="xs" c="dimmed" ff="monospace" lineClamp={2} title={snap.vault}>
+                {snap.vault || "—"}
+              </Text>
             </Card>
           </SimpleGrid>
         </Stack>
@@ -279,73 +279,47 @@ function EmbedBackfillCard({
   const canRun =
     !busy && !backfilling && embedUp && work && !pendingError;
 
+  const summary = loading
+    ? m.embedBackfillLoading
+    : off
+      ? m.embedBackfillOff
+      : noRules
+        ? m.embedBackfillNoRules
+        : allDone
+          ? fillTemplate(m.embedBackfillAllDone, { n: ruleCount })
+          : work
+            ? `${pending!.scanned} ${m.embedBackfillPending}`
+            : "";
+
   return (
-    <Card withBorder padding="md" radius="md" style={{ display: "flex", flexDirection: "column" }}>
-      <Group justify="space-between" align="flex-start" mb="sm" wrap="nowrap">
-        <Text fw={600}>{m.embedBackfill}</Text>
-        <Badge variant="light" color={statusBadge.color} size="sm">
+    <Card withBorder padding="sm" radius="md">
+      <Group justify="space-between" mb={6} wrap="nowrap" gap="xs">
+        <Text fw={600} size="sm">{m.embedBackfill}</Text>
+        <Badge variant="light" color={statusBadge.color} size="xs">
           {statusBadge.label}
         </Badge>
       </Group>
-
-      <Paper withBorder p="md" radius="sm" mb="sm" style={{ minHeight: 88 }}>
-        {loading && (
-          <Text size="sm" c="dimmed">
-            {m.embedBackfillLoading}
-          </Text>
-        )}
-        {off && (
-          <Text size="sm" c="dimmed">
-            {m.embedBackfillOff}
-          </Text>
-        )}
-        {noRules && (
-          <Text size="sm" c="dimmed">{m.embedBackfillNoRules}</Text>
-        )}
-        {allDone && (
-          <Stack gap={6}>
-            <Text size="xl" fw={700} lh={1} c="teal">
-              0
-            </Text>
-            <Text size="sm">{fillTemplate(m.embedBackfillAllDone, { n: ruleCount })}</Text>
-            <Text size="xs" c="dimmed">{m.embedBackfillImportNote}</Text>
-          </Stack>
-        )}
-        {work && (
-          <Stack gap={4}>
-            <Text size="xl" fw={700} lh={1}>
-              {pending.scanned}
-            </Text>
-            <Text size="xs" c="dimmed" tt="uppercase" fw={600} style={{ letterSpacing: "0.04em" }}>
-              {m.embedBackfillPending}
-            </Text>
-          </Stack>
-        )}
-      </Paper>
-
+      <Text size="xs" c="dimmed" lineClamp={3} mb="xs">
+        {summary}
+      </Text>
       {pendingError && (
-        <Alert variant="light" color="red" p="xs" mb="sm">
+        <Alert variant="light" color="red" p="xs" mb="xs">
           {pendingError}
         </Alert>
       )}
       {backfillNote && (
-        <Alert variant="light" color="teal" p="xs" mb="sm">
+        <Alert variant="light" color="teal" p="xs" mb="xs">
           {backfillNote}
         </Alert>
       )}
       {!embedUp && work && (
-        <Text size="xs" c="orange" mb="sm">
+        <Text size="xs" c="orange" mb="xs">
           {m.embedBackfillNeedSidecar}
         </Text>
       )}
-
-      <Text size="xs" c="dimmed" mb="md" style={{ flex: 1 }}>
-        {m.embedBackfillHint}
-      </Text>
-
-      <Group gap="xs" mt="auto">
+      <Group gap="xs" wrap="wrap">
         <Button
-          size="sm"
+          size="compact-xs"
           variant={canRun ? "filled" : "light"}
           color={canRun ? "violet" : "gray"}
           loading={backfilling}
@@ -379,15 +353,17 @@ function ServiceCard({
   const label = phase === "running" ? m.running : phase === "starting" ? m.starting : m.stopped;
   const color = phase === "running" ? "teal" : phase === "starting" ? "yellow" : "gray";
   return (
-    <Card withBorder padding="md" radius="md">
-      <Group justify="space-between" mb="sm">
-        <Text fw={600}>{title}</Text>
-        {port > 0 && <Text size="xs" c="dimmed" ff="monospace">{port}</Text>}
+    <Card withBorder padding="sm" radius="md">
+      <Group justify="space-between" mb={6} wrap="nowrap" gap="xs">
+        <Group gap={6} wrap="nowrap">
+          <Text fw={600} size="sm">{title}</Text>
+          {port > 0 && <Text size="xs" c="dimmed" ff="monospace">{port}</Text>}
+        </Group>
+        <Badge variant="dot" color={color} size="xs">{label}</Badge>
       </Group>
-      <Badge variant="dot" color={color} size="sm">{label}</Badge>
-      {pills && <Group gap={6} mt="xs">{pills}</Group>}
-      <Text size="sm" c="dimmed" mt="sm" style={{ minHeight: 40 }}>{extra}</Text>
-      <Group mt="md" gap="xs">{actions}</Group>
+      {pills && <Group gap={4} mb={4}>{pills}</Group>}
+      <Text size="xs" c="dimmed" lineClamp={2} mb="xs">{extra}</Text>
+      <Group gap={6} wrap="wrap">{actions}</Group>
     </Card>
   );
 }

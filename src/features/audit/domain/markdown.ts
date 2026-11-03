@@ -10,14 +10,65 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function escapeMermaidSource(text: string): string {
+  return escapeHtml(text).replace(/<\/pre/gi, "&lt;/pre");
+}
+
+let mermaidReady = false;
+
+/** Render ```mermaid fences after markdown HTML is in the DOM (same flow as imprint desk). */
+export async function runMermaidInElement(root: HTMLElement | null): Promise<void> {
+  if (!root) return;
+  const nodes = root.querySelectorAll<HTMLElement>(".mermaid");
+  if (!nodes.length) return;
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+  const { default: mermaid } = await import("mermaid");
+  if (!mermaidReady) {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "dark",
+      securityLevel: "strict",
+      flowchart: { useMaxWidth: false },
+      sequence: { useMaxWidth: false },
+      gantt: { useMaxWidth: false },
+    });
+    mermaidReady = true;
+  }
+  for (const node of nodes) {
+    const wrap = node.closest(".mermaid-wrap");
+    if (wrap instanceof HTMLElement) {
+      wrap.dataset.mermaidSource = node.textContent ?? "";
+    }
+  }
+  try {
+    await mermaid.run({ nodes: [...nodes], suppressErrors: true });
+    for (const wrap of root.querySelectorAll<HTMLElement>(".mermaid-wrap")) {
+      if (wrap.querySelector(".error-icon")) {
+        const source = wrap.dataset.mermaidSource ?? "";
+        wrap.classList.add("mermaid-failed");
+        wrap.innerHTML = `<pre class="mermaid-source-fallback">${escapeHtml(source)}</pre>`;
+        continue;
+      }
+      for (const svg of wrap.querySelectorAll<SVGElement>("svg")) {
+        svg.removeAttribute("width");
+        svg.style.removeProperty("max-width");
+      }
+    }
+  } catch {
+    // Keep diagram source visible when syntax fails.
+  }
+}
+
 marked.use({
   gfm: true,
   breaks: false,
   async: false,
   renderer: {
     code({ text, lang }) {
-      if (lang === "mermaid") {
-        return `<div class="mermaid-wrap"><pre class="mermaid">${escapeHtml(text)}</pre></div>`;
+      if ((lang || "").trim().toLowerCase() === "mermaid") {
+        return `<div class="mermaid-wrap"><pre class="mermaid">${escapeMermaidSource(text)}</pre></div>`;
       }
       try {
         const language = lang && hljs.getLanguage(lang) ? lang : null;
