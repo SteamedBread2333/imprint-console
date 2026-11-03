@@ -63,6 +63,17 @@ export function DashboardPage({
       setBackfillNote("");
       return;
     }
+    if (!embedUp) {
+      setPending({
+        scanned: 0,
+        encoded: 0,
+        skipped: 0,
+        failed: 0,
+        no_embedder: true,
+      });
+      setPendingError("");
+      return;
+    }
     let cancelled = false;
     setPendingError("");
     embedBackfillStatus()
@@ -75,7 +86,7 @@ export function DashboardPage({
     return () => {
       cancelled = true;
     };
-  }, [hasProject, snap.vault]);
+  }, [hasProject, snap.vault, embedUp]);
 
   const onBackfill = async () => {
     setBackfilling(true);
@@ -84,6 +95,9 @@ export function DashboardPage({
     try {
       const result = await embedBackfill();
       setBackfillNote(`${m.embedBackfillEncoded} ${result.encoded} · ${m.embedBackfillFailed} ${result.failed}`);
+      if (result.encoded === 0 && result.scanned > 0 && result.failed === 0) {
+        setBackfillNote(m.embedBackfillNeedSidecar);
+      }
       setPending(await embedBackfillStatus());
     } catch (err: unknown) {
       setPendingError(String(err));

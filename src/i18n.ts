@@ -101,7 +101,7 @@ const messages = {
     embedBackfillAllDone: "共 {n} 条规则在 vault 中均有向量，0 条待补写。",
     embedBackfillNoRules: "当前项目 vault 中没有 active 规则。",
     embedBackfillImportNote: "导入记忆时 imprint 会自动尝试补写向量（需 sidecar 可用）。",
-    embedBackfillOff: "全局 embed 未启用，无法统计未补写条数。",
+    embedBackfillOff: "无法统计待补写：请先启动 embed sidecar（全局 embed 需已启用）。",
     embedBackfillAction: "补写向量",
     embedBackfillNeedSidecar: "先启动 embed sidecar，再补写当前项目。",
     embedBackfillHint:
@@ -323,7 +323,7 @@ const messages = {
     embedBackfillAllDone: "{n} rules have vectors in the vault; 0 pending.",
     embedBackfillNoRules: "No active rules in this project's vault.",
     embedBackfillImportNote: "Import runs embed backfill automatically when the sidecar is reachable.",
-    embedBackfillOff: "Global embed is off, so the missing-vector count is unavailable.",
+    embedBackfillOff: "Cannot count missing vectors — start the embed sidecar (global embed must be enabled).",
     embedBackfillAction: "Backfill vectors",
     embedBackfillNeedSidecar: "Start the embed sidecar before backfilling this project.",
     embedBackfillHint:
