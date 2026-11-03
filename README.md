@@ -4,18 +4,24 @@
 
 # Imprint Console
 
-**imprint 后台运维控制台**
+**Operations console for [imprint](https://github.com/SteamedBread2333/imprint)**
 
 [![release](https://img.shields.io/github/v/release/SteamedBread2333/imprint-console?include_prereleases&style=flat-square)](https://github.com/SteamedBread2333/imprint-console/releases)
 ![MIT](https://img.shields.io/badge/license-MIT-c4a574?style=flat-square)
 
-管理 Host / Shelves、内置只读审计工作台与全局 Embed；可自动安装 imprint / Python / sidecar。
+Manage Host / Shelves, a built-in read-only Audit desk, and global Embed; auto-install imprint, Python, and the embed sidecar.
+
+**Languages:** [English](./README.md) · [中文](./README.zh-CN.md)
 
 </div>
 
-## 开始
+## About imprint
 
-需要 Rust、Node 20+、**git**（clone sidecar）、联网（首次准备运行环境）。
+[imprint](https://github.com/SteamedBread2333/imprint) is a **project-scoped memory layer** for AI coding tools: durable rules live in a local vault, optional **Shelves** index project docs, and an optional **embed sidecar** adds semantic dedup when writing rules. Agents and editors use the **CLI** or **MCP** to recall and update memory; **Imprint Console** (this repo) is the desktop app to run Host/Shelves, inspect graphs in Audit, and manage global embed/runtime—not a replacement for the CLI workflow.
+
+## Getting started
+
+You need Rust, Node 20+, **git** (to clone the sidecar), and network access (first-time runtime setup).
 
 ```bash
 git clone https://github.com/SteamedBread2333/imprint-client.git
@@ -24,40 +30,33 @@ npm install --legacy-peer-deps
 npm run tauri dev
 ```
 
-首次启动在弹窗中 **准备运行环境**；也可在 **设置 → 运行环境** 中安装或更新。  
-Embed 配置全局一份：`~/.imprint/embed.yaml`（项目 `imprint.yaml` **不含** `plugins.embed`）。  
-可选：选择含 `imprint.yaml` 的项目根以管理 Host / Shelves，并在 Audit 中查看规则、文档与统一关系图；不选项目也可启停 Embed。
+On first launch, use **Prepare runtime** in the dialog, or install/update under **Settings → Runtime**.  
+Embed is configured once globally in `~/.imprint/embed.yaml` (project `imprint.yaml` must **not** include `plugins.embed`).  
+Optionally pick a project root that contains `imprint.yaml` to manage Host / Shelves and open Audit (rules, docs, unified graph). You can start/stop Embed without selecting a project.
 
-Audit 通过类型化 Tauri 命令访问当前项目的本机 Host，不启动 Node/Express 服务，也不依赖 `imprint-desk-plugin` 或端口 4173。工作台只读；规则写入仍由 imprint CLI/MCP 完成。
+Audit talks to the local Host for the current project via typed Tauri commands—no Node/Express server, no `imprint-desk-plugin`, and no port 4173. The desk is read-only; rule writes still go through the imprint CLI or MCP.
 
-详见 [docs/runtime-releases.md](docs/runtime-releases.md)。
+See [docs/runtime-releases.md](docs/runtime-releases.md).
 
-## 下载哪个包？
+## Download
 
-在 [Releases](https://github.com/SteamedBread2333/imprint-client/releases) 按系统选 **一个** 即可（文件名里的 `0.1.0` 随版本变化）。
+On [Releases](https://github.com/SteamedBread2333/imprint-client/releases), pick **one** artifact for your system (version numbers such as `0.1.0` change over time).
 
-| 文件 | 适用 |
+| File | Platform |
 | --- | --- |
-| `*_aarch64.dmg` | **macOS · Apple 芯片**（M1 / M2 / M3 / M4） |
+| `*_aarch64.dmg` | **macOS · Apple Silicon** (M1 / M2 / M3 / M4) |
 | `*_x64.dmg` | **macOS · Intel** |
-| `*_aarch64.app.tar.gz` | macOS Apple 芯片，解压得到 `.app`（免 DMG 安装器） |
-| `*_x64.app.tar.gz` | macOS Intel，同上 |
-| `*_amd64.deb` | **Debian / Ubuntu** 等（`sudo dpkg -i …deb`） |
-| `*-1.x86_64.rpm` | **Fedora / RHEL** 等 RPM 系 |
-| `*_amd64.AppImage` | 通用 **Linux x86_64**，chmod +x 后直接运行 |
-| `*.msi` / `*-setup.exe` | **Windows 10/11** x64（以 Release 实际文件名为准） |
+| `*_aarch64.app.tar.gz` | macOS Apple Silicon — unpack to get `.app` (no DMG installer) |
+| `*_x64.app.tar.gz` | macOS Intel — same |
+| `*_amd64.deb` | **Debian / Ubuntu** and similar (`sudo dpkg -i …deb`) |
+| `*-1.x86_64.rpm` | **Fedora / RHEL** and other RPM distros |
+| `*_amd64.AppImage` | Generic **Linux x86_64** — `chmod +x` and run |
+| `*.msi` / `*-setup.exe` | **Windows 10/11** x64 (exact names vary by release) |
 
-说明：
+Notes:
 
-- **Release 仅含桌面控制台**。**imprint CLI** 使用 **go install 全局路径**（如 `~/go/bin/imprint`）；**Python 与 embed sidecar** 在应用数据目录。详见 [runtime-releases](docs/runtime-releases.md)（需 Go 与网络）。
-- **Linux** 构建目标为 **x86_64（amd64）**，不提供 arm64 Linux 包。
-- **macOS CI 产物为 ad-hoc 签名、未公证**。签名会封住 `.app` 里的资源和 `Info.plist`；未封住时 Gatekeeper 会把安装包判成「已损坏」。首次打开仍可能要在「系统设置 → 隐私与安全性」里允许。
-
-## 常见问题
-
-**Embed `health check failed`** — 更新运行环境中的 imprint，再 **embed prepare** → **plugin start embed**（全局配置，无需项目 cwd）。
-
-配置目录（macOS）：`~/Library/Application Support/com.imprint.client/config.json`
+- **Release artifacts are the desktop app only.** The **imprint CLI** is installed via **`go install`** to a global path (e.g. `~/go/bin/imprint`). **Python and the embed sidecar** live under app data. Details: [runtime-releases](docs/runtime-releases.md) (Go toolchain and network required).
+- **Linux builds target x86_64 (amd64)**; there is no arm64 Linux package.
 
 ## License
 
