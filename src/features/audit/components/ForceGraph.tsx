@@ -219,7 +219,7 @@ export const ForceGraph = forwardRef<GraphHandle, {
 
     const physicsStepsPerDragFrame = simNodes.length > 280 ? 2 : simNodes.length > 120 ? 3 : 5;
 
-    const fit = (animate: boolean) => {
+    const syncFit = (animate: boolean) => {
       const viewWidth = host.clientWidth >= 20 ? host.clientWidth : width;
       const viewHeight = host.clientHeight >= 20 ? host.clientHeight : height;
       const labelPad = labelsRef.current === "on" || (labelsRef.current === "auto" && simNodes.length <= 14)
@@ -229,16 +229,18 @@ export const ForceGraph = forwardRef<GraphHandle, {
       const next = zoomIdentity.translate(viewWidth / 2, viewHeight / 2).scale(frame.k).translate(-frame.cx, -frame.cy);
       zoomBehavior.extent([[0, 0], [viewWidth, viewHeight]]);
       transform = next;
-      if (viewRef.current) viewRef.current.transform = transform;
-      const target = animate ? select(canvas).transition().duration(420) : select(canvas);
-      target.call(zoomBehavior.transform, next);
-      scheduleRedraw();
       if (viewRef.current) {
+        viewRef.current.transform = transform;
         viewRef.current.width = viewWidth;
         viewRef.current.height = viewHeight;
       }
+      const target = animate ? select(canvas).transition().duration(420) : select(canvas);
+      target.call(zoomBehavior.transform, next);
     };
-    fitRef.current = () => fit(true);
+    fitRef.current = () => {
+      syncFit(true);
+      scheduleRedraw();
+    };
     viewRef.current = {
       canvas,
       zoom: zoomBehavior,
@@ -250,17 +252,20 @@ export const ForceGraph = forwardRef<GraphHandle, {
       redraw,
     };
 
+    // Same fit transform from the first frame through layout — no jump when simulation settles.
+    syncFit(false);
+    redraw();
+
     const totalTicks = layoutTickCount(simNodes.length);
     const ticksPerFrame = simNodes.length > 120 ? 12 : 24;
     let tickDone = 0;
     const runLayoutFrame = () => {
       const end = Math.min(tickDone + ticksPerFrame, totalTicks);
       for (; tickDone < end; tickDone += 1) simulation.tick();
+      syncFit(false);
       scheduleRedraw();
       if (tickDone < totalTicks) {
         layoutRaf = requestAnimationFrame(runLayoutFrame);
-      } else {
-        fit(false);
       }
     };
     layoutRaf = requestAnimationFrame(runLayoutFrame);

@@ -272,12 +272,20 @@ mark.search-hl {
 }
 
 .graph-zoom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
+  padding: 0;
   border: 1px solid var(--mantine-color-dark-4);
   border-radius: var(--mantine-radius-sm);
   background: var(--mantine-color-dark-6);
   color: inherit;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1;
+  font-family: system-ui, -apple-system, sans-serif;
   cursor: pointer;
 }
 
