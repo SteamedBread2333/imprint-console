@@ -637,6 +637,12 @@ export default function App() {
             }}
             onRefreshRuntime={refreshRuntime}
             runtimeLogLines={logLines}
+            vaultPath={snap?.vault ?? ""}
+            onRevealVault={() => snap?.vault && onRevealPath(snap.vault)}
+            onMemoryChanged={(msg) => {
+              setNotice(msg);
+              void refresh();
+            }}
           />
         )}
       </AppShell.Main>

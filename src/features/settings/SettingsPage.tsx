@@ -6,6 +6,7 @@ import {
   Card,
   Divider,
   Group,
+  Modal,
   NumberInput,
   Paper,
   ScrollArea,
@@ -20,10 +21,37 @@ import {
   type AppConfig,
   type GlobalEmbedDoc,
   type RuntimeStatus,
+  clearVaultMemory,
+  type EmbedBackfillResult,
+  exportVaultMemory,
   getGlobalEmbed,
+  importVaultMemory,
+  pickVaultImportFile,
   saveGlobalEmbed,
 } from "../../platform/tauri/api";
 import type { Locale, Messages } from "../../i18n";
+
+function fillTemplate(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(vars[key] ?? ""));
+}
+
+function formatImportMessage(m: Messages, raw: string): string {
+  try {
+    const data = JSON.parse(raw) as { imported?: number; backfill?: EmbedBackfillResult };
+    if (typeof data.imported === "number" && data.backfill) {
+      const b = data.backfill;
+      return fillTemplate(m.memoryImportBackfill, {
+        imported: data.imported,
+        scanned: b.scanned ?? 0,
+        encoded: b.encoded ?? 0,
+        failed: b.failed ?? 0,
+      });
+    }
+  } catch {
+    /* plain-text CLI output */
+  }
+  return raw.trim() || m.memoryImportDone;
+}
 
 type EmbedForm = {
   enabled: boolean;
@@ -140,6 +168,9 @@ export function SettingsPage({
   onRefreshRuntime,
   onEmbedSaved,
   runtimeLogLines,
+  vaultPath,
+  onRevealVault,
+  onMemoryChanged,
 }: {
   m: Messages;
   cfg: AppConfig;
@@ -152,11 +183,20 @@ export function SettingsPage({
   onRefreshRuntime: () => void;
   onEmbedSaved: (message: string) => void;
   runtimeLogLines: string[];
+  vaultPath: string;
+  onRevealVault: () => void;
+  onMemoryChanged: (message: string) => void;
 }) {
   const [draft, setDraft] = useState(cfg);
   const [embedDoc, setEmbedDoc] = useState<GlobalEmbedDoc | null>(null);
   const [embedForm, setEmbedForm] = useState<EmbedForm | null>(null);
   const [embedError, setEmbedError] = useState("");
+  const [memoryBusy, setMemoryBusy] = useState(false);
+  const [memoryNote, setMemoryNote] = useState("");
+  const [memoryError, setMemoryError] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
+  const hasProject = cfg.projectRoot.trim() !== "";
   useEffect(() => setDraft(cfg), [cfg]);
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +237,60 @@ export function SettingsPage({
   const numberValue = (value: string) => value === "" ? "" : value;
 
   const embedPath = runtimeStatus?.globalEmbedPath?.trim();
+
+  const runExport = async (format: "json" | "jsonl") => {
+    setMemoryBusy(true);
+    setMemoryError("");
+    setMemoryNote("");
+    try {
+      const result = await exportVaultMemory(format, m.memoryExportDialogTitle);
+      if (result.cancelled) {
+        setMemoryNote(m.memoryExportCancelled);
+      } else if (result.path) {
+        setMemoryNote(`${m.memoryExportDone} ${result.path}`);
+      }
+    } catch (e) {
+      setMemoryError(String(e));
+    } finally {
+      setMemoryBusy(false);
+    }
+  };
+
+  const runImport = async () => {
+    setImportOpen(false);
+    setMemoryBusy(true);
+    setMemoryError("");
+    setMemoryNote("");
+    try {
+      const file = await pickVaultImportFile(m.memoryImportDialogTitle);
+      if (!file) return;
+      const result = await importVaultMemory(file);
+      const msg = formatImportMessage(m, result.message);
+      setMemoryNote(msg);
+      onMemoryChanged(msg);
+    } catch (e) {
+      setMemoryError(String(e));
+    } finally {
+      setMemoryBusy(false);
+    }
+  };
+
+  const runClear = async () => {
+    setClearOpen(false);
+    setMemoryBusy(true);
+    setMemoryError("");
+    setMemoryNote("");
+    try {
+      const result = await clearVaultMemory();
+      const msg = result.message.trim() || m.memoryClearDone;
+      setMemoryNote(msg);
+      onMemoryChanged(msg);
+    } catch (e) {
+      setMemoryError(String(e));
+    } finally {
+      setMemoryBusy(false);
+    }
+  };
 
   return (
     <Stack gap="lg" maw={760}>
@@ -379,6 +473,95 @@ export function SettingsPage({
             </Group>
           </Stack>
         )}
+      </Card>
+
+      <Card withBorder padding="lg" radius="md">
+        <Stack gap="md">
+          <Stack gap={4}>
+            <Text fw={600}>{m.memoryTitle}</Text>
+            <Text size="sm" c="dimmed">{m.memoryHint}</Text>
+          </Stack>
+          {!hasProject ? (
+            <Alert variant="light">{m.memoryNeedProject}</Alert>
+          ) : (
+            <>
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">{m.memoryVault}</Text>
+                <Text size="xs" ff="monospace" c="dimmed" style={{ wordBreak: "break-all" }}>
+                  {vaultPath || "—"}
+                </Text>
+              </Stack>
+              <Group gap="xs">
+                <Button
+                  size="sm"
+                  variant="light"
+                  disabled={busy || memoryBusy}
+                  loading={memoryBusy}
+                  onClick={() => void runExport("json")}
+                >
+                  {m.memoryExportJson}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="light"
+                  disabled={busy || memoryBusy}
+                  onClick={() => void runExport("jsonl")}
+                >
+                  {m.memoryExportJsonl}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="default"
+                  color="orange"
+                  disabled={busy || memoryBusy}
+                  onClick={() => setImportOpen(true)}
+                >
+                  {m.memoryImport}
+                </Button>
+                {vaultPath && (
+                  <Button size="sm" variant="subtle" onClick={onRevealVault}>
+                    {m.openInFinder}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="light"
+                  color="red"
+                  disabled={busy || memoryBusy}
+                  onClick={() => setClearOpen(true)}
+                >
+                  {m.memoryClear}
+                </Button>
+              </Group>
+            </>
+          )}
+          {memoryError && <Alert variant="light" color="red">{memoryError}</Alert>}
+          {memoryNote && <Alert variant="light" color="teal">{memoryNote}</Alert>}
+        </Stack>
+        <Modal
+          opened={importOpen}
+          onClose={() => setImportOpen(false)}
+          title={m.memoryImportConfirmTitle}
+          centered
+        >
+          <Text size="sm" mb="lg">{m.memoryImportConfirmBody}</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setImportOpen(false)}>{m.memoryImportCancel}</Button>
+            <Button color="orange" onClick={() => void runImport()}>{m.memoryImportConfirm}</Button>
+          </Group>
+        </Modal>
+        <Modal
+          opened={clearOpen}
+          onClose={() => setClearOpen(false)}
+          title={m.memoryClearConfirmTitle}
+          centered
+        >
+          <Text size="sm" mb="lg">{m.memoryClearConfirmBody}</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setClearOpen(false)}>{m.memoryImportCancel}</Button>
+            <Button color="red" onClick={() => void runClear()}>{m.memoryClearConfirm}</Button>
+          </Group>
+        </Modal>
       </Card>
 
       <Card withBorder padding="lg" radius="md">

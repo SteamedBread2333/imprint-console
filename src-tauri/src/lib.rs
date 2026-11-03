@@ -7,6 +7,7 @@ mod runtime;
 mod services;
 mod snapshot;
 mod state;
+mod vault_io;
 mod yaml_cfg;
 
 use std::path::PathBuf;
@@ -411,10 +412,75 @@ fn ensure_no_job(state: &State<'_, AppState>) -> Result<(), String> {
 }
 
 fn project_cwd(cfg: &AppConfig) -> Result<PathBuf, String> {
-    if cfg.project_root.trim().is_empty() {
-        return Err("select a project first".into());
-    }
-    Ok(PathBuf::from(&cfg.project_root))
+    vault_io::project_cwd(cfg)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultExportResult {
+    cancelled: bool,
+    path: Option<String>,
+}
+
+#[tauri::command]
+async fn export_vault_memory(
+    app: AppHandle,
+    format: String,
+    dialog_title: String,
+) -> Result<VaultExportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let cfg = load_config(&app)?;
+        match vault_io::export_vault_with_save_dialog(&app, &cfg, &format, &dialog_title)? {
+            Some(path) => Ok(VaultExportResult {
+                cancelled: false,
+                path: Some(path),
+            }),
+            None => Ok(VaultExportResult {
+                cancelled: true,
+                path: None,
+            }),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn pick_vault_import_file(app: AppHandle, dialog_title: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let cfg = load_config(&app)?;
+        vault_io::pick_import_file(&app, &cfg, &dialog_title)
+    })
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[derive(serde::Serialize)]
+struct VaultImportResult {
+    /// Raw JSON from `imprint --json import` when available; otherwise CLI text.
+    message: String,
+}
+
+#[tauri::command]
+async fn import_vault_memory(app: AppHandle, file_path: String) -> Result<VaultImportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let cfg = load_config(&app)?;
+        let message = vault_io::import_vault_from_path(&cfg, &file_path)?;
+        Ok(VaultImportResult { message })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn clear_vault_memory(app: AppHandle) -> Result<VaultImportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let cfg = load_config(&app)?;
+        let message = vault_io::clear_vault(&cfg)?;
+        Ok(VaultImportResult { message })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -519,6 +585,10 @@ pub fn run() {
             update_runtime_component,
             get_global_embed_cmd,
             save_global_embed_cmd,
+            export_vault_memory,
+            pick_vault_import_file,
+            import_vault_memory,
+            clear_vault_memory,
             commands::desk::desk_request,
         ])
         .run(tauri::generate_context!())

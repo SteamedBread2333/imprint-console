@@ -125,6 +125,35 @@ export async function saveGlobalEmbed(doc: GlobalEmbedDoc): Promise<void> {
   return invoke("save_global_embed_cmd", { doc });
 }
 
+export interface VaultExportResult {
+  cancelled: boolean;
+  path?: string;
+}
+
+export interface VaultImportResult {
+  message: string;
+}
+
+export async function exportVaultMemory(
+  format: "json" | "jsonl",
+  dialogTitle: string,
+): Promise<VaultExportResult> {
+  return invoke("export_vault_memory", { format, dialogTitle });
+}
+
+export async function pickVaultImportFile(dialogTitle: string): Promise<string | null> {
+  const path = await invoke<string | null>("pick_vault_import_file", { dialogTitle });
+  return path;
+}
+
+export async function importVaultMemory(filePath: string): Promise<VaultImportResult> {
+  return invoke("import_vault_memory", { filePath });
+}
+
+export async function clearVaultMemory(): Promise<VaultImportResult> {
+  return invoke("clear_vault_memory");
+}
+
 export async function getSnapshot(): Promise<Snapshot> {
   return invoke("get_snapshot");
 }

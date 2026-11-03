@@ -195,6 +195,7 @@ export function DashboardPage({
             />
             <EmbedBackfillCard
               m={m}
+              ruleCount={snap.host.rules ?? 0}
               pending={pending}
               pendingError={pendingError}
               backfillNote={backfillNote}
@@ -221,8 +222,13 @@ export function DashboardPage({
   );
 }
 
+function fillTemplate(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(vars[key] ?? ""));
+}
+
 function EmbedBackfillCard({
   m,
+  ruleCount,
   pending,
   pendingError,
   backfillNote,
@@ -232,6 +238,7 @@ function EmbedBackfillCard({
   onBackfill,
 }: {
   m: Messages;
+  ruleCount: number;
   pending: EmbedBackfillResult | null;
   pendingError: string;
   backfillNote: string;
@@ -243,6 +250,8 @@ function EmbedBackfillCard({
   const loading = !pending && !pendingError;
   const off = pending?.no_embedder === true;
   const ready = pending != null && !off && pending.scanned === 0;
+  const noRules = ready && ruleCount === 0;
+  const allDone = ready && ruleCount > 0;
   const work = pending != null && !off && pending.scanned > 0;
 
   const statusBadge = loading
@@ -276,12 +285,16 @@ function EmbedBackfillCard({
             {m.embedBackfillOff}
           </Text>
         )}
-        {ready && (
+        {noRules && (
+          <Text size="sm" c="dimmed">{m.embedBackfillNoRules}</Text>
+        )}
+        {allDone && (
           <Stack gap={6}>
             <Text size="xl" fw={700} lh={1} c="teal">
               0
             </Text>
-            <Text size="sm">{m.embedBackfillNone}</Text>
+            <Text size="sm">{fillTemplate(m.embedBackfillAllDone, { n: ruleCount })}</Text>
+            <Text size="xs" c="dimmed">{m.embedBackfillImportNote}</Text>
           </Stack>
         )}
         {work && (
