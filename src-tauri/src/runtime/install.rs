@@ -263,27 +263,44 @@ fn ensure_sidecar(
     Ok(())
 }
 
+/// Sync Console-managed sidecar clone to latest `origin/main`.
 fn git_pull(dir: &Path, stream_id: &str, app: &tauri::AppHandle) -> Result<(), String> {
-    for args in [
-        vec!["pull", "--ff-only"],
-        vec!["fetch", "origin", "main"],
-        vec!["checkout", "main"],
-        vec!["pull", "--ff-only"],
-    ] {
-        let status = Command::new("git")
+    let dir_str = dir.to_str().ok_or("invalid sidecar path")?;
+    let git = |args: &[&str]| -> Result<std::process::ExitStatus, String> {
+        Command::new("git")
             .arg("-C")
-            .arg(dir)
-            .args(&args)
+            .arg(dir_str)
+            .args(args)
             .status()
-            .map_err(|e| e.to_string())?;
-        if !status.success() {
-            emit_line(
-                app,
-                stream_id,
-                &format!("runtime: git {:?} failed (continuing)", args),
-            );
-        }
+            .map_err(|e| e.to_string())
+    };
+
+    if git(&["pull", "--ff-only"])?.success() {
+        emit_line(app, stream_id, "runtime: sidecar git pull ok");
+        return Ok(());
     }
+
+    emit_line(
+        app,
+        stream_id,
+        "runtime: git pull --ff-only failed (local changes or shallow clone); fetch + reset…",
+    );
+
+    if !git(&["fetch", "origin", "main"])?.success() {
+        return Err(
+            "sidecar git fetch failed; check network or delete embed-sidecar and re-run prepare runtime"
+                .into(),
+        );
+    }
+    // reset --hard (not checkout -B): setup may leave modified config.py; checkout refuses that.
+    if !git(&["reset", "--hard", "origin/main"])?.success() {
+        return Err(format!(
+            "sidecar git reset failed; delete {} and re-run prepare runtime",
+            dir.display()
+        ));
+    }
+
+    emit_line(app, stream_id, "runtime: sidecar synced to origin/main");
     Ok(())
 }
 
