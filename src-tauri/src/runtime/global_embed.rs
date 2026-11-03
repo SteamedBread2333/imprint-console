@@ -20,10 +20,6 @@ impl Default for GlobalEmbedDoc {
         let mut config = HashMap::new();
         config.insert("port".into(), serde_yaml::Value::Number(4174.into()));
         config.insert(
-            "model".into(),
-            serde_yaml::Value::String("BAAI/bge-small-zh-v1.5".into()),
-        );
-        config.insert(
             "duplicate_threshold".into(),
             serde_yaml::Value::Number(serde_yaml::Number::from(0.65f64)),
         );
@@ -71,12 +67,6 @@ pub fn validate(doc: &GlobalEmbedDoc) -> Result<(), String> {
         };
         if !ok {
             return Err("embed port must be an integer from 1 to 65535".into());
-        }
-    }
-    if let Some(v) = doc.config.get("model") {
-        let ok = matches!(v, serde_yaml::Value::String(s) if !s.trim().is_empty());
-        if !ok {
-            return Err("embed model must be a non-empty string".into());
         }
     }
     for key in [
@@ -171,10 +161,7 @@ mod tests {
         validate(&back).expect("valid");
         assert!(back.enabled);
         assert_eq!(embed_port(&back), 4174);
-        match back.config.get("model") {
-            Some(serde_yaml::Value::String(s)) => assert_eq!(s, "BAAI/bge-small-zh-v1.5"),
-            other => panic!("model: {other:?}"),
-        }
+        assert!(back.config.get("model").is_none());
         assert!(back.config.get("relate_model").is_none());
     }
 

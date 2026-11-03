@@ -165,6 +165,26 @@ export async function imprintUpDown(up: boolean): Promise<string> {
   return invoke("imprint_up_down", { up });
 }
 
+export interface EmbedBackfillResult {
+  scanned: number;
+  encoded: number;
+  skipped: number;
+  failed: number;
+  failed_ids?: string[];
+  dry_run?: boolean;
+  no_embedder?: boolean;
+}
+
+/** Rules in the current project vault that have no vector for the embed model. */
+export async function embedBackfillStatus(): Promise<EmbedBackfillResult> {
+  return invoke("embed_backfill_status");
+}
+
+/** Encode missing vectors for the current project. Requires the sidecar to be up. */
+export async function embedBackfill(): Promise<EmbedBackfillResult> {
+  return invoke("embed_backfill");
+}
+
 export async function revealInFinder(path: string): Promise<void> {
   return invoke("reveal_in_finder", { path });
 }

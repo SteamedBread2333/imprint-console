@@ -25,24 +25,29 @@ type EmbedForm = {
   enabled: boolean;
   package: string;
   port: string;
-  model: string;
   duplicateThreshold: string;
   relateContradictionMin: string;
   relateEntailmentMin: string;
   relateBidirectional: boolean;
-  relateModel: string;
+  relateEnabled: boolean;
   timeoutSeconds: string;
 };
 
+/** Operational knobs. Model ids stay in the sidecar plugin schema. */
 const EMBED_DEFAULTS = {
   port: 4174,
-  model: "BAAI/bge-small-zh-v1.5",
   duplicateThreshold: 0.65,
   relateContradictionMin: 0.4,
   relateEntailmentMin: 0.35,
   relateBidirectional: true,
   timeoutSeconds: 5,
 };
+
+function relateEnabledFrom(raw: unknown): boolean {
+  if (typeof raw !== "string") return true;
+  const v = raw.trim().toLowerCase();
+  return v !== "" && v !== "off" && v !== "none" && v !== "false" && v !== "0";
+}
 
 function numField(v: unknown, fallback: number): string {
   const n =
@@ -61,7 +66,6 @@ function embedFormFromDoc(doc: GlobalEmbedDoc): EmbedForm {
     enabled: doc.enabled,
     package: doc.package,
     port: numField(c.port, EMBED_DEFAULTS.port),
-    model: typeof c.model === "string" && c.model.trim() ? c.model : EMBED_DEFAULTS.model,
     duplicateThreshold: numField(c.duplicate_threshold, EMBED_DEFAULTS.duplicateThreshold),
     relateContradictionMin: numField(c.relate_contradiction_min, EMBED_DEFAULTS.relateContradictionMin),
     relateEntailmentMin: numField(c.relate_entailment_min, EMBED_DEFAULTS.relateEntailmentMin),
@@ -69,7 +73,7 @@ function embedFormFromDoc(doc: GlobalEmbedDoc): EmbedForm {
       typeof c.relate_bidirectional === "boolean"
         ? c.relate_bidirectional
         : EMBED_DEFAULTS.relateBidirectional,
-    relateModel: typeof c.relate_model === "string" ? c.relate_model : "",
+    relateEnabled: relateEnabledFrom(c.relate_model),
     timeoutSeconds: numField(c.timeout_seconds, EMBED_DEFAULTS.timeoutSeconds),
   };
 }
@@ -85,9 +89,8 @@ function parseUnitInterval(raw: string): number | null {
   return raw.trim() !== "" && Number.isFinite(n) && n >= 0 && n <= 1 ? n : null;
 }
 
-function embedFormError(form: EmbedForm): "port" | "model" | "threshold" | "timeout" | null {
+function embedFormError(form: EmbedForm): "port" | "threshold" | "timeout" | null {
   if (parseIntInRange(form.port, 1, 65535) == null) return "port";
-  if (!form.model.trim()) return "model";
   if (
     parseUnitInterval(form.duplicateThreshold) == null ||
     parseUnitInterval(form.relateContradictionMin) == null ||
@@ -101,16 +104,18 @@ function embedDocFromForm(base: GlobalEmbedDoc, form: EmbedForm): GlobalEmbedDoc
   const config: GlobalEmbedDoc["config"] = {
     ...base.config,
     port: parseIntInRange(form.port, 1, 65535),
-    model: form.model.trim(),
     duplicate_threshold: parseUnitInterval(form.duplicateThreshold),
     relate_contradiction_min: parseUnitInterval(form.relateContradictionMin),
     relate_entailment_min: parseUnitInterval(form.relateEntailmentMin),
     relate_bidirectional: form.relateBidirectional,
     timeout_seconds: parseIntInRange(form.timeoutSeconds, 1, 3600),
   };
-  const relate = form.relateModel.trim();
-  if (relate) config.relate_model = relate;
-  else delete config.relate_model;
+  delete config.model;
+  if (form.relateEnabled) {
+    delete config.relate_model;
+  } else {
+    config.relate_model = "off";
+  }
   return {
     ...base,
     enabled: form.enabled,
@@ -166,7 +171,6 @@ export function SettingsPage({
     if (invalid) {
       setEmbedError({
         port: m.embedInvalidPort,
-        model: m.embedInvalidModel,
         threshold: m.embedInvalidThreshold,
         timeout: m.embedInvalidTimeout,
       }[invalid]);
@@ -176,6 +180,7 @@ export function SettingsPage({
       const next = embedDocFromForm(embedDoc, embedForm);
       await saveGlobalEmbed(next);
       setEmbedDoc(next);
+      setEmbedForm(embedFormFromDoc(next));
       setEmbedError("");
       onEmbedSaved(m.embedSaved);
       onRefreshRuntime();
@@ -250,10 +255,12 @@ export function SettingsPage({
               <NumberInput label={m.embedEntailment} description="relate_entailment_min" min={0} max={1} step={0.01} decimalScale={2}
                 value={embedForm.relateEntailmentMin} onChange={(v) => setEmbedForm({ ...embedForm, relateEntailmentMin: numberValue(String(v)) })} />
             </SimpleGrid>
-            <TextInput label={m.embedModel} description="model" value={embedForm.model} styles={monoInput}
-              onChange={(e) => setEmbedForm({ ...embedForm, model: e.currentTarget.value })} />
-            <TextInput label={m.embedRelateModel} description={m.embedRelateModelHint} value={embedForm.relateModel} styles={monoInput}
-              onChange={(e) => setEmbedForm({ ...embedForm, relateModel: e.currentTarget.value })} />
+            <Switch
+              label={m.embedRelate}
+              description={m.embedRelateHint}
+              checked={embedForm.relateEnabled}
+              onChange={(e) => setEmbedForm({ ...embedForm, relateEnabled: e.currentTarget.checked })}
+            />
             <Switch label={m.embedBidirectional} description="relate_bidirectional"
               checked={embedForm.relateBidirectional}
               onChange={(e) => setEmbedForm({ ...embedForm, relateBidirectional: e.currentTarget.checked })} />

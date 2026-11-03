@@ -21,7 +21,7 @@ Embed config remains **`~/.imprint/embed.yaml`** (data only; CLI is not stored u
 
 ## Global embed config
 
-Semantic dedup is configured in **`~/.imprint/embed.yaml`** (enabled, package path, port, model, thresholds). Project `imprint.yaml` must **not** contain `plugins.embed`.
+Semantic dedup is configured in **`~/.imprint/embed.yaml`** (enabled, package path, port, thresholds, and `relate_model: off` to disable relate). Model ids live in the sidecar. Project `imprint.yaml` must **not** contain `plugins.embed`.
 
 Console writes `package` to the managed sidecar directory after `ensure_runtime`.
 

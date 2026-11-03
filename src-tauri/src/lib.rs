@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use config::{load_config, save_config, AppConfig};
-use imprint::{check_python, kill_job, run_imprint_capture, spawn_streaming};
+use imprint::{check_python, kill_job, run_imprint_capture, run_imprint_json, spawn_streaming};
 use snapshot::Snapshot;
 use state::AppState;
 use yaml_cfg::validate_project;
@@ -410,6 +410,36 @@ fn ensure_no_job(state: &State<'_, AppState>) -> Result<(), String> {
     Err("another task is running — wait or cancel".into())
 }
 
+fn project_cwd(cfg: &AppConfig) -> Result<PathBuf, String> {
+    if cfg.project_root.trim().is_empty() {
+        return Err("select a project first".into());
+    }
+    Ok(PathBuf::from(&cfg.project_root))
+}
+
+#[tauri::command]
+async fn embed_backfill_status(app: AppHandle) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let cfg = load_config(&app)?;
+        let cwd = project_cwd(&cfg)?;
+        run_imprint_json(&cfg, &cwd, &["embed", "backfill", "--dry-run"])
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn embed_backfill(app: AppHandle, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    ensure_no_job(&state)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let cfg = load_config(&app)?;
+        let cwd = project_cwd(&cfg)?;
+        run_imprint_json(&cfg, &cwd, &["embed", "backfill"])
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn imprint_up_down(app: AppHandle, up: bool) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -481,6 +511,8 @@ pub fn run() {
             start_sidecar_log_tail,
             stop_sidecar_log_tail,
             imprint_up_down,
+            embed_backfill_status,
+            embed_backfill,
             reveal_in_finder,
             get_runtime_status_cmd,
             ensure_runtime,

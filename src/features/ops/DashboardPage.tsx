@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
-import type { Snapshot } from "../../platform/tauri/api";
+import { embedBackfill, embedBackfillStatus, type EmbedBackfillResult, type Snapshot } from "../../platform/tauri/api";
 import { StatusPill } from "../../components/StatusPill";
 import type { Messages } from "../../i18n";
 
@@ -51,6 +51,46 @@ export function DashboardPage({
 }: Props) {
   const embedUp = snap.embed.running || snap.embedHealth?.ok === true;
   const embedPhase = servicePhase(embedUp, pendingEmbed);
+  const [pending, setPending] = useState<EmbedBackfillResult | null>(null);
+  const [pendingError, setPendingError] = useState("");
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillNote, setBackfillNote] = useState("");
+
+  useEffect(() => {
+    if (!hasProject) {
+      setPending(null);
+      setPendingError("");
+      setBackfillNote("");
+      return;
+    }
+    let cancelled = false;
+    setPendingError("");
+    embedBackfillStatus()
+      .then((status) => {
+        if (!cancelled) setPending(status);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setPendingError(String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasProject, snap.vault]);
+
+  const onBackfill = async () => {
+    setBackfilling(true);
+    setPendingError("");
+    setBackfillNote("");
+    try {
+      const result = await embedBackfill();
+      setBackfillNote(`${m.embedBackfillEncoded} ${result.encoded} · ${m.embedBackfillFailed} ${result.failed}`);
+      setPending(await embedBackfillStatus());
+    } catch (err: unknown) {
+      setPendingError(String(err));
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   return (
     <Stack gap="lg">
@@ -153,6 +193,35 @@ export function DashboardPage({
                 </Button>
               }
             />
+            <Card withBorder padding="md" radius="md">
+              <Text fw={600} mb="sm">{m.embedBackfill}</Text>
+              <Text size="sm" c="dimmed">
+                {pending?.no_embedder
+                  ? m.embedBackfillOff
+                  : pending
+                    ? `${m.embedBackfillPending} ${pending.scanned}`
+                    : "…"}
+              </Text>
+              {pendingError && <Text size="sm" c="red" mt={4}>{pendingError}</Text>}
+              {pending && !pending.no_embedder && pending.scanned === 0 && !pendingError && (
+                <Text size="sm" c="dimmed" mt={4}>{m.embedBackfillNone}</Text>
+              )}
+              {backfillNote && <Text size="sm" mt={4}>{backfillNote}</Text>}
+              {!embedUp && pending && !pending.no_embedder && pending.scanned > 0 && (
+                <Text size="xs" c="dimmed" mt={4}>{m.embedBackfillNeedSidecar}</Text>
+              )}
+              <Text size="xs" c="dimmed" mt="sm">{m.embedBackfillHint}</Text>
+              <Group mt="md">
+                <Button
+                  size="xs"
+                  loading={backfilling}
+                  disabled={busy || backfilling || !embedUp || !pending || pending.no_embedder || pending.scanned === 0}
+                  onClick={() => void onBackfill()}
+                >
+                  {m.embedBackfillAction}
+                </Button>
+              </Group>
+            </Card>
             <Card withBorder padding="md" radius="md">
               <Text fw={600} mb="sm">{m.vault}</Text>
               <Text size="sm" c="dimmed" ff="monospace" lineClamp={3} title={snap.vault}>
