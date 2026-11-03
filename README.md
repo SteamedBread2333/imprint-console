@@ -32,14 +32,6 @@ Audit 通过类型化 Tauri 命令访问当前项目的本机 Host，不启动 N
 
 详见 [docs/runtime-releases.md](docs/runtime-releases.md)。
 
-## 截图
-
-| 总览 | Embed 向导 | 设置 |
-|:---:|:---:|:---:|
-| ![dashboard](./assets/screenshots/dashboard.png) | ![embed](./assets/screenshots/embed-wizard.png) | ![settings](./assets/screenshots/settings.png) |
-
-更新 UI 后：`npm run screenshots`
-
 ## 下载哪个包？
 
 在 [Releases](https://github.com/SteamedBread2333/imprint-client/releases) 按系统选 **一个** 即可（文件名里的 `0.1.0` 随版本变化）。
