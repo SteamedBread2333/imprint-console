@@ -222,7 +222,7 @@ mark.search-hl {
 .graph-canvas,
 .force-graph,
 .force-graph-canvas,
-.force-graph-canvas svg {
+.force-graph-canvas canvas {
   display: block;
   width: 100%;
   height: 100%;

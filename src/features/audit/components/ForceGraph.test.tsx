@@ -5,6 +5,7 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it } from "vitest";
 import type { GraphData } from "../domain/contracts";
+import { nodeRadius } from "../domain/graph-model";
 import { ForceGraph } from "./ForceGraph";
 
 const data: GraphData = {
@@ -37,6 +38,8 @@ afterEach(() => {
 
 function render(node: ReactNode) {
   host = document.createElement("div");
+  host.style.width = "640px";
+  host.style.height = "420px";
   document.body.appendChild(host);
   root = createRoot(host);
   act(() => root?.render(node));
@@ -54,7 +57,7 @@ it("keeps the running simulation when equivalent graph props get new identities"
       onSelect={() => {}}
     />,
   );
-  const svg = host?.querySelector("svg");
+  const canvas = host?.querySelector("canvas[data-testid='force-graph']");
   act(() => {
     root?.render(
       <ForceGraph
@@ -67,7 +70,7 @@ it("keeps the running simulation when equivalent graph props get new identities"
       />,
     );
   });
-  expect(host?.querySelector("svg")).toBe(svg);
+  expect(host?.querySelector("canvas[data-testid='force-graph']")).toBe(canvas);
 
   act(() => {
     root?.render(
@@ -81,6 +84,6 @@ it("keeps the running simulation when equivalent graph props get new identities"
       />,
     );
   });
-  expect(host?.querySelector("svg")).toBe(svg);
-  expect(host?.querySelector("circle")?.getAttribute("r")).toBe("21");
+  expect(host?.querySelector("canvas[data-testid='force-graph']")).toBe(canvas);
+  expect(nodeRadius(data.nodes[0], true)).toBe(29);
 });
