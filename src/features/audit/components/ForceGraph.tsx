@@ -93,14 +93,19 @@ export const ForceGraph = forwardRef<GraphHandle, {
     const width = measured ? host.clientWidth : 640;
     const height = measured ? host.clientHeight : 420;
     const nodeIds = new Set(sourceNodes.map((node) => node.id));
+    const cx = width / 2;
+    const cy = height / 2;
+    const seedRadius = Math.min(
+      Math.min(width, height) * 0.28,
+      24 + Math.sqrt(sourceNodes.length) * 5,
+    );
     const simNodes: SimNode[] = sourceNodes.map((node, index) => {
-      const radius = 28 + Math.sqrt(sourceNodes.length) * 12;
       const angle = (2 * Math.PI * index) / Math.max(sourceNodes.length, 1) - Math.PI / 2;
       return {
         ...node,
         r: nodeRadius(node, node.id === selectedRef.current),
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
+        x: cx + Math.cos(angle) * seedRadius,
+        y: cy + Math.sin(angle) * seedRadius,
         vx: 0,
         vy: 0,
       };
@@ -193,12 +198,27 @@ export const ForceGraph = forwardRef<GraphHandle, {
       ));
     node.select("circle").attr("r", (datum) => datum.r);
 
+    const chargeStrength = -Math.min(72, 28 + Math.sqrt(simNodes.length) * 5);
+    const repulseMax = Math.min(width, height) * 0.42;
     const simulation = forceSimulation(simNodes)
-      .force("link", forceLink<SimNode, SimLink>(links).id((datum) => datum.id).distance(58).strength(0.5))
-      .force("charge", forceManyBody().strength(-85))
-      .force("center", forceCenter(width / 2, height / 2))
-      .force("collide", forceCollide<SimNode>().radius((datum) => datum.r + 8))
+      .force("link", forceLink<SimNode, SimLink>(links).id((datum) => datum.id).distance(48).strength(0.62))
+      .force("charge", forceManyBody().strength(chargeStrength).distanceMax(repulseMax))
+      .force("center", forceCenter(cx, cy).strength(0.12))
+      .force("collide", forceCollide<SimNode>().radius((datum) => datum.r + 6))
       .stop();
+
+    const pinAllNodes = () => {
+      for (const n of simNodes) {
+        n.fx = n.x;
+        n.fy = n.y;
+      }
+    };
+    const unpinAllNodes = () => {
+      for (const n of simNodes) {
+        n.fx = null;
+        n.fy = null;
+      }
+    };
 
     const draw = () => {
       line
@@ -208,10 +228,6 @@ export const ForceGraph = forwardRef<GraphHandle, {
         .attr("y2", (edge) => (edge.target as SimNode).y ?? 0);
       node.attr("transform", (datum) => `translate(${datum.x ?? 0},${datum.y ?? 0})`);
     };
-    simulation.on("tick", draw);
-    simulation.alpha(1).tick(300);
-    draw();
-
     const fit = (animate: boolean) => {
       const viewWidth = host.clientWidth >= 20 ? host.clientWidth : width;
       const viewHeight = host.clientHeight >= 20 ? host.clientHeight : height;
@@ -229,12 +245,18 @@ export const ForceGraph = forwardRef<GraphHandle, {
     };
     fitRef.current = () => fit(true);
     viewRef.current = { svg, zoom: zoomBehavior, nodes: simNodes, width, height };
+
+    simulation.on("tick", draw);
+    simulation.alpha(1).tick(Math.min(420, 180 + simNodes.length * 4));
+    draw();
     fit(false);
 
     node.call(
       drag<SVGGElement, SimNode>()
         .on("start", (event, datum) => {
           if (!event.active) simulation.alphaTarget(0.25).restart();
+          // Bug fix: pin every node so charge only moves the dragged one via fx/fy updates.
+          pinAllNodes();
           datum.fx = datum.x;
           datum.fy = datum.y;
         })
@@ -242,10 +264,9 @@ export const ForceGraph = forwardRef<GraphHandle, {
           datum.fx = event.x;
           datum.fy = event.y;
         })
-        .on("end", (event, datum) => {
+        .on("end", (event) => {
           if (!event.active) simulation.alphaTarget(0);
-          datum.fx = null;
-          datum.fy = null;
+          unpinAllNodes();
         }),
     );
 
@@ -254,6 +275,7 @@ export const ForceGraph = forwardRef<GraphHandle, {
       viewRef.current = null;
       fitRef.current = () => {};
       simulation.stop();
+      simulation.on("tick", null);
       svg.on(".zoom", null);
       host.replaceChildren();
     };
